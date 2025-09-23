@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheesy Order System</title>
+<style>
+body { margin:0; font-family:Arial, sans-serif; background:#f0f0f0; }
+#loginPage { display:flex; justify-content:center; align-items:center; height:100vh; }
+#loginContainer { background:white; padding:30px; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); width:300px; }
+#loginContainer input { width:100%; padding:10px; margin:10px 0; border-radius:5px; border:1px solid #ccc; }
+#loginContainer button { width:100%; padding:10px; background:#ff6600; color:white; border:none; border-radius:5px; cursor:pointer; }
+#loginContainer button:hover { background:#e65c00; }
+
+#adminDashboard, #userDashboard { display:none; }
+.sidebar { height:100vh; width:220px; position:fixed; top:0; left:0; background-color:#ff6600; padding-top:20px; color:white; display:flex; flex-direction:column; }
+.sidebar button { background:none; border:none; color:white; padding:15px 20px; text-align:left; width:100%; cursor:pointer; font-size:16px; }
+.sidebar button:hover { background-color:#e65c00; }
+.main { margin-left:220px; padding:20px; }
+.hidden { display:none; }
+input, select, textarea { width:100%; padding:10px; margin:5px 0 15px 0; border-radius:5px; border:1px solid #ccc; }
+button.submitBtn { background-color:#ff6600; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:5px; }
+button.submitBtn:hover { background-color:#e65c00; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { padding:10px; border:1px solid #ccc; text-align:left; }
+@media(max-width:768px) { .sidebar { width:100%; height:auto; position:relative; flex-direction:row; overflow-x:auto; } .sidebar button { flex:1; text-align:center; padding:10px; } .main { margin-left:0; } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage">
+  <div id="loginContainer">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button id="loginBtn">Login</button>
+  </div>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="adminDashboard">
+  <div class="sidebar">
+    <button onclick="showAdminSection('orders')">See Orders</button>
+    <button onclick="showAdminSection('branches')">Create Branches</button>
+    <button onclick="showAdminSection('users')">Create Users</button>
+    <button onclick="showAdminSection('items')">Manage Items</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+  <div class="main">
+    <div id="orders" class="section hidden">
+      <h2>Orders</h2>
+      <table>
+        <thead><tr><th>ID</th><th>User</th><th>Item</th><th>Quantity</th><th>Status</th></tr></thead>
+        <tbody id="ordersTable"></tbody>
+      </table>
+    </div>
+    <div id="branches" class="section hidden">
+      <h2>Create Branch</h2>
+      <input type="text" id="branchName" placeholder="Branch Name">
+      <button class="submitBtn" onclick="createBranch()">Add Branch</button>
+      <ul id="branchList"></ul>
+    </div>
+    <div id="users" class="section hidden">
+      <h2>Create User</h2>
+      <input type="text" id="newUsername" placeholder="Username">
+      <input type="password" id="newPassword" placeholder="Password">
+      <select id="branchSelect"><option value="">Select Branch</option></select>
+      <button class="submitBtn" onclick="createUser()">Add User</button>
+      <ul id="userList"></ul>
+    </div>
+    <div id="items" class="section hidden">
+      <h2>Manage Items</h2>
+      <input type="text" id="itemName" placeholder="Item Name">
+      <input type="text" id="itemUnit" placeholder="Unit">
+      <button class="submitBtn" onclick="createItem()">Add Item</button>
+      <ul id="itemList"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- USER DASHBOARD -->
+<div id="userDashboard">
+  <div class="sidebar">
+    <button onclick="showUserSection('userOrders')">My Orders</button>
+    <button onclick="showUserSection('placeOrder')">Place Order</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+  <div class="main">
+    <div id="userOrders" class="section hidden">
+      <h2>My Orders</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Item</th><th>Quantity</th><th>Status</th></tr></thead>
+        <tbody id="userOrdersTable"></tbody>
+      </table>
+    </div>
+    <div id="placeOrder" class="section hidden">
+      <h2>Place Order</h2>
+      <select id="itemSelect"><option value="">Select Item</option></select>
+      <input type="number" id="orderQuantity" placeholder="Quantity">
+      <button class="submitBtn" onclick="placeOrder()">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ✅ Replace with your Supabase project info
+const supabaseUrl = "https://qkfcwmxrhzzjflbwjtop.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrZmN3bXhyaHp6amZsYndqdG9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1OTE1MjAsImV4cCI6MjA3NDE2NzUyMH0.nN0t-LuAcO_Ide7j7Gez4lnZGp4Blw4OfIphbs3Xf5g";
+const db = supabase.createClient(supabaseUrl, supabaseKey);
+
+let loggedUser = null;
+
+// LOGIN
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+
+  if(username === 'Cheesy' && password === 'Cheesy123'){
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('adminDashboard').style.display='block';
+    showAdminSection('orders'); 
+    await renderAdminOrders(); 
+    await renderBranches(); 
+    await renderUsers(); 
+    await renderItems();
+    return;
+  }
+
+  const { data: user, error } = await db.from('users').select('*').eq('username', username).eq('password', password).single();
+  if(error || !user) return alert('Invalid user credentials!');
+  loggedUser = user;
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('userDashboard').style.display='block';
+  await renderUserOrders(); 
+  await renderItemSelect(); 
+  showUserSection('userOrders');
+});
+
+// LOGOUT
+function logout(){
+  loggedUser=null;
+  document.getElementById('loginPage').style.display='flex';
+  document.getElementById('adminDashboard').style.display='none';
+  document.getElementById('userDashboard').style.display='none';
+}
+
+// ADMIN DASHBOARD FUNCTIONS
+function showAdminSection(id){
+  document.querySelectorAll('#adminDashboard .section').forEach(s=>s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='orders') renderAdminOrders();
+  if(id==='branches') renderBranches();
+  if(id==='users') renderUsers();
+  if(id==='items') renderItems();
+}
+
+// Branches
+async function createBranch(){
+  const name=document.getElementById('branchName').value.trim();
+  if(!name) return;
+  const { error } = await db.from('branches').insert([{name}]);
+  if(error) return alert(error.message);
+  document.getElementById('branchName').value='';
+  await renderBranches();
+  await renderBranchSelect();
+}
+async function renderBranches(){
+  const { data, error } = await db.from('branches').select('*');
+  if(error) return console.error(error);
+  const list=document.getElementById('branchList'); list.innerHTML='';
+  data.forEach(b=>list.innerHTML+=`<li>${b.name}</li>`);
+}
+async function renderBranchSelect(){
+  const { data } = await db.from('branches').select("*");
+  const select = document.getElementById('branchSelect'); select.innerHTML='<option value="">Select Branch</option>';
+  data.forEach(b=>{ const o=document.createElement('option'); o.value=b.name; o.textContent=b.name; select.appendChild(o);});
+}
+
+// Users
+async function createUser(){
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newPassword').value.trim();
+  const branch=document.getElementById('branchSelect').value;
+  if(!username||!password||!branch) return alert('Fill all fields!');
+  const { error } = await db.from('users').insert([{ username,password,branch }]);
+  if(error) return alert(error.message);
+  document.getElementById('newUsername').value=''; 
+  document.getElementById('newPassword').value='';
+  await renderUsers();
+}
+async function renderUsers(){
+  const { data, error } = await db.from('users').select("*");
+  if(error) return console.error(error);
+  const list=document.getElementById('userList'); list.innerHTML='';
+  data.forEach(u=>list.innerHTML+=`<li>${u.username} (${u.branch || ''})</li>`);
+}
+
+// Items
+async function createItem(){
+  const name=document.getElementById('itemName').value.trim();
+  const unit=document.getElementById('itemUnit').value.trim();
+  if(!name||!unit) return alert('Fill all fields!');
+  const { error } = await db.from('items').insert([{name,unit}]);
+  if(error) return alert(error.message);
+  document.getElementById('itemName').value=''; 
+  document.getElementById('itemUnit').value='';
+  await renderItems();
+  await renderItemSelect();
+}
+async function renderItems(){
+  const { data, error } = await db.from('items').select("*");
+  if(error) return console.error(error);
+  const list=document.getElementById('itemList'); list.innerHTML='';
+  data.forEach(i=>list.innerHTML+=`<li>${i.name} (${i.unit})</li>`);
+}
+
+// Orders
+async function renderAdminOrders(){
+  const { data, error } = await db.from('orders')
+    .select('id, quantity, status, users(username), items(name)')
+    .order('id', {ascending:true});
+  if(error) return console.error(error);
+  const tbody = document.getElementById('ordersTable');
+  tbody.innerHTML='';
+  data.forEach(o=>tbody.innerHTML+=`<tr><td>${o.id}</td><td>${o.users.username}</td><td>${o.items.name}</td><td>${o.quantity}</td><td>${o.status}</td></tr>`);
+}
+
+// USER DASHBOARD FUNCTIONS
+function showUserSection(id){
+  document.querySelectorAll('#userDashboard .section').forEach(s=>s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+async function renderUserOrders(){
+  const { data, error } = await db.from('orders')
+    .select('id, quantity, status, items(name)')
+    .eq('user_id', loggedUser.id)
+    .order('id',{ascending:true});
+  if(error) return console.error(error);
+  const tbody = document.getElementById('userOrdersTable');
+  tbody.innerHTML='';
+  data.forEach(o=>tbody.innerHTML+=`<tr><td>${o.id}</td><td>${o.items.name}</td><td>${o.quantity}</td><td>${o.status}</td></tr>`);
+}
+async function renderItemSelect(){
+  const { data, error } = await db.from('items').select("*");
+  if(error) return console.error(error);
+  const select=document.getElementById('itemSelect'); select.innerHTML='<option value="">Select Item</option>';
+  data.forEach(i=>{ const o=document.createElement('option'); o.value=i.id; o.textContent=i.name; select.appendChild(o); });
+}
+async function placeOrder(){
+  const itemId=document.getElementById('itemSelect').value;
+  const qty=parseInt(document.getElementById('orderQuantity').value,10);
+  if(!itemId || !qty) return alert('Select item and quantity!');
+  const { error } = await db.from('orders').insert([{user_id:loggedUser.id,item_id:itemId,quantity:qty,status:'Pending'}]);
+  if(error) return alert(error.message);
+  document.getElementById('orderQuantity').value='';
+  await renderUserOrders(); 
+  await renderAdminOrders();
+  alert('Order placed successfully!');
+}
+
+// Initial load
+renderBranches(); renderUsers(); renderItems();
+</script>
+</body>
+</html>
