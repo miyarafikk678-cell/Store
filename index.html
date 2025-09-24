@@ -23,6 +23,7 @@ button.submitBtn { background-color:#ff6600; color:white; border:none; padding:1
 button.submitBtn:hover { background-color:#e65c00; }
 table { width:100%; border-collapse:collapse; margin-top:10px; }
 th, td { padding:10px; border:1px solid #ccc; text-align:left; }
+.order-date { margin-top:15px; font-weight:bold; }
 @media(max-width:768px) { .sidebar { width:100%; height:auto; position:relative; flex-direction:row; overflow-x:auto; } .sidebar button { flex:1; text-align:center; padding:10px; } .main { margin-left:0; } }
 </style>
 </head>
@@ -45,15 +46,15 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
     <button onclick="showAdminSection('branches')">Create Branches</button>
     <button onclick="showAdminSection('users')">Create Users</button>
     <button onclick="showAdminSection('items')">Manage Items</button>
+    <button onclick="showAdminSection('reports')">Reports</button>
     <button onclick="logout()">Logout</button>
   </div>
   <div class="main">
     <div id="orders" class="section hidden">
       <h2>Orders</h2>
-      <table>
-        <thead><tr><th>ID</th><th>User</th><th>Item</th><th>Quantity</th><th>Status</th></tr></thead>
-        <tbody id="ordersTable"></tbody>
-      </table>
+      <label>Date: <input type="date" id="adminOrderDateFilter" onchange="renderAdminOrders()"></label>
+      <label>Branch: <select id="adminOrderBranchFilter" onchange="renderAdminOrders()"><option value="">All Branches</option></select></label>
+      <div id="ordersTableContainer"></div>
     </div>
     <div id="branches" class="section hidden">
       <h2>Create Branch</h2>
@@ -76,6 +77,12 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
       <button class="submitBtn" onclick="createItem()">Add Item</button>
       <ul id="itemList"></ul>
     </div>
+    <div id="reports" class="section hidden">
+      <h2>Reports</h2>
+      <label>User: <select id="reportUserFilter" onchange="renderReports()"><option value="">All Users</option></select></label>
+      <label>Branch: <select id="reportBranchFilter" onchange="renderReports()"><option value="">All Branches</option></select></label>
+      <div id="reportContent"></div>
+    </div>
   </div>
 </div>
 
@@ -89,13 +96,12 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
   <div class="main">
     <div id="userOrders" class="section hidden">
       <h2>My Orders</h2>
-      <table>
-        <thead><tr><th>ID</th><th>Item</th><th>Quantity</th><th>Status</th></tr></thead>
-        <tbody id="userOrdersTable"></tbody>
-      </table>
+      <label>Date: <input type="date" id="userOrderDateFilter" onchange="renderUserOrders()"></label>
+      <div id="userOrdersTableContainer"></div>
     </div>
     <div id="placeOrder" class="section hidden">
       <h2>Place Order</h2>
+      <p id="currentDate"></p>
       <select id="itemSelect"><option value="">Select Item</option></select>
       <input type="number" id="orderQuantity" placeholder="Quantity">
       <button class="submitBtn" onclick="placeOrder()">Place Order</button>
@@ -105,9 +111,8 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ✅ Replace with your Supabase project info
-const supabaseUrl = "https://qkfcwmxrhzzjflbwjtop.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrZmN3bXhyaHp6amZsYndqdG9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1OTE1MjAsImV4cCI6MjA3NDE2NzUyMH0.nN0t-LuAcO_Ide7j7Gez4lnZGp4Blw4OfIphbs3Xf5g";
+const supabaseUrl = "https://yrsxneflvjehttaralyz.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyc3huZWZsdmplaHR0YXJhbHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0ODg3OTAsImV4cCI6MjA3NDA2NDc5MH0.pZusEI_4v3S38yghZ9YVQ6bxEtL9KODI6MMou8zxz90";
 const db = supabase.createClient(supabaseUrl, supabaseKey);
 
 let loggedUser = null;
@@ -116,26 +121,20 @@ let loggedUser = null;
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value.trim();
-
   if(username === 'Cheesy' && password === 'Cheesy123'){
     document.getElementById('loginPage').style.display='none';
     document.getElementById('adminDashboard').style.display='block';
     showAdminSection('orders'); 
-    await renderAdminOrders(); 
-    await renderBranches(); 
-    await renderUsers(); 
-    await renderItems();
+    await renderAdminOrders(); await renderBranches(); await renderUsers(); await renderItems(); await renderReports(); await renderAdminBranchFilter();
     return;
   }
-
-  const { data: user, error } = await db.from('users').select('*').eq('username', username).eq('password', password).single();
-  if(error || !user) return alert('Invalid user credentials!');
+  const { data: user, error } = await db.from('users').select('*').eq('username', username).single();
+  if(error || !user || user.password!==password) return alert('Invalid credentials!');
   loggedUser = user;
   document.getElementById('loginPage').style.display='none';
   document.getElementById('userDashboard').style.display='block';
-  await renderUserOrders(); 
-  await renderItemSelect(); 
-  showUserSection('userOrders');
+  showUserSection('userOrders'); await renderUserOrders(); await renderItemSelect();
+  document.getElementById('currentDate').textContent = `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
 });
 
 // LOGOUT
@@ -146,7 +145,7 @@ function logout(){
   document.getElementById('userDashboard').style.display='none';
 }
 
-// ADMIN DASHBOARD FUNCTIONS
+// DASHBOARD NAV
 function showAdminSection(id){
   document.querySelectorAll('#adminDashboard .section').forEach(s=>s.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
@@ -154,29 +153,19 @@ function showAdminSection(id){
   if(id==='branches') renderBranches();
   if(id==='users') renderUsers();
   if(id==='items') renderItems();
+  if(id==='reports') renderReports();
+}
+function showUserSection(id){
+  document.querySelectorAll('#userDashboard .section').forEach(s=>s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
 }
 
 // Branches
-async function createBranch(){
-  const name=document.getElementById('branchName').value.trim();
-  if(!name) return;
-  const { error } = await db.from('branches').insert([{name}]);
-  if(error) return alert(error.message);
-  document.getElementById('branchName').value='';
-  await renderBranches();
-  await renderBranchSelect();
-}
-async function renderBranches(){
-  const { data, error } = await db.from('branches').select('*');
-  if(error) return console.error(error);
-  const list=document.getElementById('branchList'); list.innerHTML='';
-  data.forEach(b=>list.innerHTML+=`<li>${b.name}</li>`);
-}
-async function renderBranchSelect(){
-  const { data } = await db.from('branches').select("*");
-  const select = document.getElementById('branchSelect'); select.innerHTML='<option value="">Select Branch</option>';
-  data.forEach(b=>{ const o=document.createElement('option'); o.value=b.name; o.textContent=b.name; select.appendChild(o);});
-}
+async function createBranch(){ const name=document.getElementById('branchName').value.trim(); if(!name) return; const {error}=await db.from('branches').insert([{name}]); if(error) return alert(error.message); document.getElementById('branchName').value=''; await renderBranches(); await renderBranchSelect(); await renderAdminBranchFilter(); }
+async function renderBranches(){ const {data,error}=await db.from('branches').select('*'); if(error) return console.error(error); const list=document.getElementById('branchList'); list.innerHTML=''; data.forEach(b=>list.innerHTML+=`<li>${b.name}</li>`);}
+async function renderBranchSelect(){ const {data} = await db.from('branches').select("*"); const select = document.getElementById('branchSelect'); select.innerHTML='<option value="">Select Branch</option>'; data.forEach(b=>{ const o=document.createElement('option'); o.value=b.name; o.textContent=b.name; select.appendChild(o);}); }
+async function renderAdminBranchFilter(){ const {data}=await db.from('branches').select("*"); const select = document.getElementById('adminOrderBranchFilter'); select.innerHTML='<option value="">All Branches</option>'; data.forEach(b=>{ select.innerHTML+=`<option value="${b.name}">${b.name}</option>`; }); const reportSelect = document.getElementById('reportBranchFilter'); reportSelect.innerHTML='<option value="">All Branches</option>';
+data.forEach(b=>{ reportSelect.innerHTML+=`<option value="${b.name}">${b.name}</option>`; }); }
 
 // Users
 async function createUser(){
@@ -188,7 +177,7 @@ async function createUser(){
   if(error) return alert(error.message);
   document.getElementById('newUsername').value=''; 
   document.getElementById('newPassword').value='';
-  await renderUsers();
+  await renderUsers(); await renderReportUserSelect();
 }
 async function renderUsers(){
   const { data, error } = await db.from('users').select("*");
@@ -206,8 +195,7 @@ async function createItem(){
   if(error) return alert(error.message);
   document.getElementById('itemName').value=''; 
   document.getElementById('itemUnit').value='';
-  await renderItems();
-  await renderItemSelect();
+  await renderItems(); await renderItemSelect();
 }
 async function renderItems(){
   const { data, error } = await db.from('items').select("*");
@@ -218,50 +206,158 @@ async function renderItems(){
 
 // Orders
 async function renderAdminOrders(){
-  const { data, error } = await db.from('orders')
-    .select('id, quantity, status, users(username), items(name)')
-    .order('id', {ascending:true});
+  let { data, error } = await db.from('orders').select('id, quantity, status, date, user_id, items(name), users(username,branch)').order('date',{ascending:true});
   if(error) return console.error(error);
-  const tbody = document.getElementById('ordersTable');
-  tbody.innerHTML='';
-  data.forEach(o=>tbody.innerHTML+=`<tr><td>${o.id}</td><td>${o.users.username}</td><td>${o.items.name}</td><td>${o.quantity}</td><td>${o.status}</td></tr>`);
+
+  const dateFilter = document.getElementById('adminOrderDateFilter').value;
+  const branchFilter = document.getElementById('adminOrderBranchFilter').value;
+  if(dateFilter) data = data.filter(o => o.date && o.date.startsWith(dateFilter));
+  if(branchFilter) data = data.filter(o => o.users.branch === branchFilter);
+
+  const container = document.getElementById('ordersTableContainer'); container.innerHTML='';
+
+  // Group by user then date
+  const grouped = {};
+  data.forEach(o=>{
+    const key = `${o.users.username}_${o.date ? o.date.split('T')[0] : 'No Date'}`;
+    if(!grouped[key]) grouped[key] = [];
+    grouped[key].push(o);
+  });
+
+  for(const key in grouped){
+    const [username,date] = key.split('_');
+    container.innerHTML += `<p class="order-date">User: ${username} | Date: ${date}</p>`;
+    container.innerHTML += `<table><thead><tr><th>Item</th><th>Quantity</th><th>Status</th></tr></thead><tbody>` +
+      grouped[key].map(o=>`<tr>
+        <td>${o.status==='Pending' ? `<input type="text" value="${o.items.name}" onchange="editAdminOrder(${o.id}, this.value, 'item')">` : o.items.name}</td>
+        <td>${o.status==='Pending' ? `<input type="number" value="${o.quantity}" onchange="editAdminOrder(${o.id}, this.value, 'quantity')">` : o.quantity}</td>
+        <td>
+          <select onchange="updateOrderStatus(${o.id}, this.value)">
+            <option value="Pending" ${o.status==='Pending'?'selected':''}>Pending</option>
+            <option value="Sent" ${o.status==='Sent'?'selected':''}>Sent</option>
+            <option value="Received" ${o.status==='Received'?'selected':''}>Received</option>
+          </select>
+        </td>
+      </tr>`).join('') + `</tbody></table>`;
+  }
 }
 
-// USER DASHBOARD FUNCTIONS
-function showUserSection(id){
-  document.querySelectorAll('#userDashboard .section').forEach(s=>s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
+async function editAdminOrder(orderId,value,type){
+  const updateData = {};
+  if(type==='quantity') updateData.quantity = parseInt(value,10);
+  if(type==='item') {
+    const { data: item } = await db.from('items').select('*').ilike('name', value).limit(1).single();
+    if(!item) return alert('Item not found!'); updateData.item_id = item.id;
+  }
+  const { error } = await db.from('orders').update(updateData).eq('id', orderId);
+  if(error) return alert(error.message);
+  await renderAdminOrders();
 }
+
+async function updateOrderStatus(orderId, status){
+  const { data } = await db.from('orders').select('*').eq('id', orderId).single();
+  if(status==='Sent' && data.status!=='Pending') return alert('Cannot mark Sent again!');
+  if(status==='Received' && data.status!=='Sent') return alert('User can mark Received only after Sent');
+  const { error } = await db.from('orders').update({status}).eq('id', orderId);
+  if(error) return alert(error.message);
+  await renderAdminOrders(); await renderUserOrders();
+}
+
+// USER ORDERS
 async function renderUserOrders(){
-  const { data, error } = await db.from('orders')
-    .select('id, quantity, status, items(name)')
-    .eq('user_id', loggedUser.id)
-    .order('id',{ascending:true});
+  const { data, error } = await db.from('orders').select('id,item_id,quantity,status,date,items(name)').eq('user_id',loggedUser.id).order('date',{ascending:true});
   if(error) return console.error(error);
-  const tbody = document.getElementById('userOrdersTable');
-  tbody.innerHTML='';
-  data.forEach(o=>tbody.innerHTML+=`<tr><td>${o.id}</td><td>${o.items.name}</td><td>${o.quantity}</td><td>${o.status}</td></tr>`);
+
+  const dateFilter = document.getElementById('userOrderDateFilter').value;
+  let filtered = data; if(dateFilter) filtered = data.filter(o => o.date && o.date.startsWith(dateFilter));
+
+  const container = document.getElementById('userOrdersTableContainer'); container.innerHTML='';
+  const grouped = {};
+  filtered.forEach(o=>{
+    const d = o.date ? o.date.split('T')[0] : 'No Date';
+    if(!grouped[d]) grouped[d]=[];
+    grouped[d].push(o);
+  });
+
+  for(const date in grouped){
+    container.innerHTML += `<p class="order-date">Date: ${date}</p>`;
+    container.innerHTML += `<table><thead><tr><th>Item</th><th>Quantity</th><th>Status</th></tr></thead><tbody>` +
+      grouped[date].map(o=>`<tr>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>
+          <select onchange="updateMyOrderStatus(${o.id}, this.value)">
+            <option value="Pending" ${o.status==='Pending'?'selected':''}>Pending</option>
+            <option value="Sent" ${o.status==='Sent'?'selected':''}>Sent</option>
+            <option value="Received" ${o.status==='Received'?'selected':''}>Received</option>
+          </select>
+        </td>
+      </tr>`).join('') + `</tbody></table>`;
+  }
 }
+
+async function updateMyOrderStatus(orderId,status){
+  const { data } = await db.from('orders').select('*').eq('id', orderId).single();
+  if(status==='Received' && data.status!=='Sent') return alert('You can only mark Received after Sent');
+  if(status!=='Received') return alert('You cannot change this');
+  const { error } = await db.from('orders').update({status}).eq('id', orderId);
+  if(error) return alert(error.message);
+  await renderUserOrders(); await renderAdminOrders();
+}
+
+// ITEM SELECT
 async function renderItemSelect(){
   const { data, error } = await db.from('items').select("*");
   if(error) return console.error(error);
   const select=document.getElementById('itemSelect'); select.innerHTML='<option value="">Select Item</option>';
   data.forEach(i=>{ const o=document.createElement('option'); o.value=i.id; o.textContent=i.name; select.appendChild(o); });
 }
+
+// PLACE ORDER
 async function placeOrder(){
   const itemId=document.getElementById('itemSelect').value;
   const qty=parseInt(document.getElementById('orderQuantity').value,10);
   if(!itemId || !qty) return alert('Select item and quantity!');
-  const { error } = await db.from('orders').insert([{user_id:loggedUser.id,item_id:itemId,quantity:qty,status:'Pending'}]);
+  const { error } = await db.from('orders').insert([{user_id:loggedUser.id,item_id:itemId,quantity:qty,status:'Pending',date:new Date().toISOString()}]);
   if(error) return alert(error.message);
   document.getElementById('orderQuantity').value='';
-  await renderUserOrders(); 
-  await renderAdminOrders();
+  await renderUserOrders(); await renderAdminOrders();
   alert('Order placed successfully!');
 }
 
-// Initial load
-renderBranches(); renderUsers(); renderItems();
+// REPORTS
+async function renderReports(){
+  const userId = document.getElementById('reportUserFilter').value;
+  const branch = document.getElementById('reportBranchFilter').value;
+  let query = db.from('orders').select('id, quantity, status, date, users(username,branch), items(name)').order('date',{ascending:true});
+  if(userId) query = query.eq('user_id', userId);
+  if(branch) query = query.eq('users.branch', branch);
+  const { data, error } = await query;
+  if(error) return console.error(error);
+
+  let html = '<table><thead><tr><th>ID</th><th>User</th><th>Branch</th><th>Item</th><th>Quantity</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+  data.forEach(o=> html+=`<tr>
+    <td>${o.id}</td>
+    <td>${o.users.username}</td>
+    <td>${o.users.branch}</td>
+    <td>${o.items.name}</td>
+    <td>${o.quantity}</td>
+    <td>${o.status}</td>
+    <td>${o.date ? o.date.split('T')[0] : ''}</td>
+  </tr>`);
+  html += '</tbody></table>';
+  document.getElementById('reportContent').innerHTML = html;
+}
+
+// Populate report users
+async function renderReportUserSelect(){
+  const { data } = await db.from('users').select("*");
+  const select = document.getElementById('reportUserFilter'); select.innerHTML='<option value="">All Users</option>';
+  data.forEach(u=> select.innerHTML+=`<option value="${u.id}">${u.username}</option>`);
+}
+
+// INITIAL LOAD
+renderBranches(); renderUsers(); renderItems(); renderReportUserSelect(); renderAdminBranchFilter();
 </script>
 </body>
 </html>
