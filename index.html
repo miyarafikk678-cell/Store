@@ -99,12 +99,26 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
       <label>Date: <input type="date" id="userOrderDateFilter" onchange="renderUserOrders()"></label>
       <div id="userOrdersTableContainer"></div>
     </div>
+    <!-- UPDATED PLACE ORDER SECTION -->
     <div id="placeOrder" class="section hidden">
       <h2>Place Order</h2>
       <p id="currentDate"></p>
       <select id="itemSelect"><option value="">Select Item</option></select>
       <input type="number" id="orderQuantity" placeholder="Quantity">
-      <button class="submitBtn" onclick="placeOrder()">Place Order</button>
+      <button class="submitBtn" onclick="addToCart()">Add to Cart</button>
+
+      <h3>Order Cart</h3>
+      <table id="cartTable" style="margin-top:10px; width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button class="submitBtn" onclick="submitCart()" style="margin-top:10px;">Submit Order</button>
     </div>
   </div>
 </div>
@@ -116,248 +130,308 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const db = supabase.createClient(supabaseUrl, supabaseKey);
 
 let loggedUser = null;
-
+let orderCart = [];
 // LOGIN
-document.getElementById('loginBtn').addEventListener('click', async () => {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value.trim();
-  if(username === 'Cheesy' && password === 'Cheesy123'){
-    document.getElementById('loginPage').style.display='none';
-    document.getElementById('adminDashboard').style.display='block';
-    showAdminSection('orders'); 
-    await renderAdminOrders(); await renderBranches(); await renderUsers(); await renderItems(); await renderReports(); await renderAdminBranchFilter();
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+
+  if (username === "Cheesy" && password === "Cheesy123") {
+    loggedUser = { id: "admin", role: "admin", username };
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("adminDashboard").style.display = "block";
+    loadAdminData();
     return;
   }
-  const { data: user, error } = await db.from('users').select('*').eq('username', username).single();
-  if(error || !user || user.password!==password) return alert('Invalid credentials!');
-  loggedUser = user;
-  document.getElementById('loginPage').style.display='none';
-  document.getElementById('userDashboard').style.display='block';
-  showUserSection('userOrders'); await renderUserOrders(); await renderItemSelect();
-  document.getElementById('currentDate').textContent = `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+
+  const { data, error } = await db
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .eq("password", password)
+    .single();
+
+  if (error || !data) {
+    alert("Invalid login");
+    return;
+  }
+
+  loggedUser = { id: data.id, role: "user", username: data.username, branch: data.branch_id };
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("userDashboard").style.display = "block";
+  loadUserData();
 });
 
 // LOGOUT
-function logout(){
-  loggedUser=null;
-  document.getElementById('loginPage').style.display='flex';
-  document.getElementById('adminDashboard').style.display='none';
-  document.getElementById('userDashboard').style.display='none';
+function logout() {
+  loggedUser = null;
+  document.getElementById("loginPage").style.display = "flex";
+  document.getElementById("adminDashboard").style.display = "none";
+  document.getElementById("userDashboard").style.display = "none";
 }
 
-// DASHBOARD NAV
-function showAdminSection(id){
-  document.querySelectorAll('#adminDashboard .section').forEach(s=>s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-  if(id==='orders') renderAdminOrders();
-  if(id==='branches') renderBranches();
-  if(id==='users') renderUsers();
-  if(id==='items') renderItems();
-  if(id==='reports') renderReports();
-}
-function showUserSection(id){
-  document.querySelectorAll('#userDashboard .section').forEach(s=>s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
+// SHOW ADMIN SECTIONS
+function showAdminSection(id) {
+  document.querySelectorAll("#adminDashboard .section").forEach(s => s.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
 }
 
-// Branches
-async function createBranch(){ const name=document.getElementById('branchName').value.trim(); if(!name) return; const {error}=await db.from('branches').insert([{name}]); if(error) return alert(error.message); document.getElementById('branchName').value=''; await renderBranches(); await renderBranchSelect(); await renderAdminBranchFilter(); }
-async function renderBranches(){ const {data,error}=await db.from('branches').select('*'); if(error) return console.error(error); const list=document.getElementById('branchList'); list.innerHTML=''; data.forEach(b=>list.innerHTML+=`<li>${b.name}</li>`);}
-async function renderBranchSelect(){ const {data} = await db.from('branches').select("*"); const select = document.getElementById('branchSelect'); select.innerHTML='<option value="">Select Branch</option>'; data.forEach(b=>{ const o=document.createElement('option'); o.value=b.name; o.textContent=b.name; select.appendChild(o);}); }
-async function renderAdminBranchFilter(){ const {data}=await db.from('branches').select("*"); const select = document.getElementById('adminOrderBranchFilter'); select.innerHTML='<option value="">All Branches</option>'; data.forEach(b=>{ select.innerHTML+=`<option value="${b.name}">${b.name}</option>`; }); const reportSelect = document.getElementById('reportBranchFilter'); reportSelect.innerHTML='<option value="">All Branches</option>';
-data.forEach(b=>{ reportSelect.innerHTML+=`<option value="${b.name}">${b.name}</option>`; }); }
-
-// Users
-async function createUser(){
-  const username=document.getElementById('newUsername').value.trim();
-  const password=document.getElementById('newPassword').value.trim();
-  const branch=document.getElementById('branchSelect').value;
-  if(!username||!password||!branch) return alert('Fill all fields!');
-  const { error } = await db.from('users').insert([{ username,password,branch }]);
-  if(error) return alert(error.message);
-  document.getElementById('newUsername').value=''; 
-  document.getElementById('newPassword').value='';
-  await renderUsers(); await renderReportUserSelect();
-}
-async function renderUsers(){
-  const { data, error } = await db.from('users').select("*");
-  if(error) return console.error(error);
-  const list=document.getElementById('userList'); list.innerHTML='';
-  data.forEach(u=>list.innerHTML+=`<li>${u.username} (${u.branch || ''})</li>`);
+// SHOW USER SECTIONS
+function showUserSection(id) {
+  document.querySelectorAll("#userDashboard .section").forEach(s => s.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
 }
 
-// Items
-async function createItem(){
-  const name=document.getElementById('itemName').value.trim();
-  const unit=document.getElementById('itemUnit').value.trim();
-  if(!name||!unit) return alert('Fill all fields!');
-  const { error } = await db.from('items').insert([{name,unit}]);
-  if(error) return alert(error.message);
-  document.getElementById('itemName').value=''; 
-  document.getElementById('itemUnit').value='';
-  await renderItems(); await renderItemSelect();
-}
-async function renderItems(){
-  const { data, error } = await db.from('items').select("*");
-  if(error) return console.error(error);
-  const list=document.getElementById('itemList'); list.innerHTML='';
-  data.forEach(i=>list.innerHTML+=`<li>${i.name} (${i.unit})</li>`);
+// CREATE BRANCH
+async function createBranch() {
+  const name = document.getElementById("branchName").value.trim();
+  if (!name) return;
+  await db.from("branches").insert([{ name }]);
+  loadAdminData();
 }
 
-// Orders
-async function renderAdminOrders(){
-  let { data, error } = await db.from('orders').select('id, quantity, status, date, user_id, items(name), users(username,branch)').order('date',{ascending:true});
-  if(error) return console.error(error);
+// CREATE USER
+async function createUser() {
+  const username = document.getElementById("newUsername").value.trim();
+  const password = document.getElementById("newPassword").value.trim();
+  const branch_id = document.getElementById("branchSelect").value;
+  if (!username || !password || !branch_id) return;
+  await db.from("users").insert([{ username, password, branch_id }]);
+  loadAdminData();
+}
 
-  const dateFilter = document.getElementById('adminOrderDateFilter').value;
-  const branchFilter = document.getElementById('adminOrderBranchFilter').value;
-  if(dateFilter) data = data.filter(o => o.date && o.date.startsWith(dateFilter));
-  if(branchFilter) data = data.filter(o => o.users.branch === branchFilter);
+// CREATE ITEM
+async function createItem() {
+  const name = document.getElementById("itemName").value.trim();
+  const unit = document.getElementById("itemUnit").value.trim();
+  if (!name || !unit) return;
+  await db.from("items").insert([{ name, unit }]);
+  loadAdminData();
+}
 
-  const container = document.getElementById('ordersTableContainer'); container.innerHTML='';
+// CART FUNCTIONS
+function addToCart() {
+  const itemId = document.getElementById("itemSelect").value;
+  const qty = parseInt(document.getElementById("orderQuantity").value);
+  if (!itemId || !qty || qty <= 0) return;
 
-  // Group by user then date
-  const grouped = {};
-  data.forEach(o=>{
-    const key = `${o.users.username}_${o.date ? o.date.split('T')[0] : 'No Date'}`;
-    if(!grouped[key]) grouped[key] = [];
-    grouped[key].push(o);
+  const itemName = document.getElementById("itemSelect").selectedOptions[0].text;
+  orderCart.push({ item_id: itemId, name: itemName, quantity: qty });
+
+  renderCart();
+  document.getElementById("orderQuantity").value = "";
+  document.getElementById("itemSelect").value = "";
+}
+
+function renderCart() {
+  const tbody = document.querySelector("#cartTable tbody");
+  tbody.innerHTML = "";
+  orderCart.forEach((c, i) => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${c.name}</td>
+        <td>${c.quantity}</td>
+        <td><button onclick="removeCartItem(${i})">Remove</button></td>
+      </tr>`;
+  });
+}
+
+function removeCartItem(index) {
+  orderCart.splice(index, 1);
+  renderCart();
+}
+
+async function submitCart() {
+  if (orderCart.length === 0) {
+    alert("Cart is empty!");
+    return;
+  }
+  const today = new Date().toISOString().split("T")[0];
+  for (const item of orderCart) {
+    await db.from("orders").insert([{
+      user_id: loggedUser.id,
+      branch_id: loggedUser.branch,
+      item_id: item.item_id,
+      quantity: item.quantity,
+      date: today,
+      status: "pending"
+    }]);
+  }
+  orderCart = [];
+  renderCart();
+  alert("Order submitted!");
+  renderUserOrders();
+}
+
+// LOAD ADMIN DATA
+async function loadAdminData() {
+  const { data: branches } = await db.from("branches").select("*");
+  document.getElementById("branchList").innerHTML = branches.map(b => `<li>${b.name}</li>`).join("");
+  document.getElementById("branchSelect").innerHTML = `<option value="">Select Branch</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("adminOrderBranchFilter").innerHTML = `<option value="">All Branches</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("reportBranchFilter").innerHTML = `<option value="">All Branches</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+
+  const { data: users } = await db.from("users").select("*");
+  document.getElementById("userList").innerHTML = users.map(u => `<li>${u.username}</li>`).join("");
+  document.getElementById("reportUserFilter").innerHTML = `<option value="">All Users</option>` + users.map(u => `<option value="${u.id}">${u.username}</option>`).join("");
+
+  const { data: items } = await db.from("items").select("*");
+  document.getElementById("itemList").innerHTML = items.map(i => `<li>${i.name} (${i.unit})</li>`).join("");
+}
+
+// LOAD USER DATA
+async function loadUserData() {
+  const { data: items } = await db.from("items").select("*");
+  document.getElementById("itemSelect").innerHTML = `<option value="">Select Item</option>` + items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
+  renderUserOrders();
+  document.getElementById("currentDate").innerText = "Today: " + new Date().toISOString().split("T")[0];
+}
+
+// RENDER USER ORDERS
+async function renderUserOrders() {
+  const filterDate = document.getElementById("userOrderDateFilter").value;
+  let query = db.from("orders").select("*, items(name), branches(name)").eq("user_id", loggedUser.id).order("date");
+  if (filterDate) query = query.eq("date", filterDate);
+  const { data: orders } = await query;
+
+  const container = document.getElementById("userOrdersTableContainer");
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  let grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
   });
 
-  for(const key in grouped){
-    const [username,date] = key.split('_');
-    container.innerHTML += `<p class="order-date">User: ${username} | Date: ${date}</p>`;
-    container.innerHTML += `<table><thead><tr><th>Item</th><th>Quantity</th><th>Status</th></tr></thead><tbody>` +
-      grouped[key].map(o=>`<tr>
-        <td>${o.status==='Pending' ? `<input type="text" value="${o.items.name}" onchange="editAdminOrder(${o.id}, this.value, 'item')">` : o.items.name}</td>
-        <td>${o.status==='Pending' ? `<input type="number" value="${o.quantity}" onchange="editAdminOrder(${o.id}, this.value, 'quantity')">` : o.quantity}</td>
-        <td>
-          <select onchange="updateOrderStatus(${o.id}, this.value)">
-            <option value="Pending" ${o.status==='Pending'?'selected':''}>Pending</option>
-            <option value="Sent" ${o.status==='Sent'?'selected':''}>Sent</option>
-            <option value="Received" ${o.status==='Received'?'selected':''}>Received</option>
-          </select>
-        </td>
-      </tr>`).join('') + `</tbody></table>`;
+  for (let date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `
+      <table>
+        <tr><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
+        ${grouped[date].map(o => `
+          <tr>
+            <td>${o.items.name}</td>
+            <td>${o.quantity}</td>
+            <td>${o.status}</td>
+            <td>
+              ${o.status === "sent" ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ""}
+            </td>
+          </tr>`).join("")}
+      </table>`;
   }
 }
 
-async function editAdminOrder(orderId,value,type){
-  const updateData = {};
-  if(type==='quantity') updateData.quantity = parseInt(value,10);
-  if(type==='item') {
-    const { data: item } = await db.from('items').select('*').ilike('name', value).limit(1).single();
-    if(!item) return alert('Item not found!'); updateData.item_id = item.id;
+// RENDER ADMIN ORDERS
+async function renderAdminOrders() {
+  const filterDate = document.getElementById("adminOrderDateFilter").value;
+  const branchFilter = document.getElementById("adminOrderBranchFilter").value;
+  let query = db.from("orders").select("*, items(name), users(username), branches(name)").order("date");
+  if (filterDate) query = query.eq("date", filterDate);
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+  const { data: orders } = await query;
+
+  const container = document.getElementById("ordersTableContainer");
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
   }
-  const { error } = await db.from('orders').update(updateData).eq('id', orderId);
-  if(error) return alert(error.message);
-  await renderAdminOrders();
-}
 
-async function updateOrderStatus(orderId, status){
-  const { data } = await db.from('orders').select('*').eq('id', orderId).single();
-  if(status==='Sent' && data.status!=='Pending') return alert('Cannot mark Sent again!');
-  if(status==='Received' && data.status!=='Sent') return alert('User can mark Received only after Sent');
-  const { error } = await db.from('orders').update({status}).eq('id', orderId);
-  if(error) return alert(error.message);
-  await renderAdminOrders(); await renderUserOrders();
-}
-
-// USER ORDERS
-async function renderUserOrders(){
-  const { data, error } = await db.from('orders').select('id,item_id,quantity,status,date,items(name)').eq('user_id',loggedUser.id).order('date',{ascending:true});
-  if(error) return console.error(error);
-
-  const dateFilter = document.getElementById('userOrderDateFilter').value;
-  let filtered = data; if(dateFilter) filtered = data.filter(o => o.date && o.date.startsWith(dateFilter));
-
-  const container = document.getElementById('userOrdersTableContainer'); container.innerHTML='';
-  const grouped = {};
-  filtered.forEach(o=>{
-    const d = o.date ? o.date.split('T')[0] : 'No Date';
-    if(!grouped[d]) grouped[d]=[];
-    grouped[d].push(o);
+  let grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
   });
 
-  for(const date in grouped){
-    container.innerHTML += `<p class="order-date">Date: ${date}</p>`;
-    container.innerHTML += `<table><thead><tr><th>Item</th><th>Quantity</th><th>Status</th></tr></thead><tbody>` +
-      grouped[date].map(o=>`<tr>
-        <td>${o.items.name}</td>
-        <td>${o.quantity}</td>
-        <td>
-          <select onchange="updateMyOrderStatus(${o.id}, this.value)">
-            <option value="Pending" ${o.status==='Pending'?'selected':''}>Pending</option>
-            <option value="Sent" ${o.status==='Sent'?'selected':''}>Sent</option>
-            <option value="Received" ${o.status==='Received'?'selected':''}>Received</option>
-          </select>
-        </td>
-      </tr>`).join('') + `</tbody></table>`;
+  for (let date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `
+      <table>
+        <tr><th>User</th><th>Branch</th><th>Item</th><th>Qty</th><th>Status</th><th>Action</th></tr>
+        ${grouped[date].map(o => `
+          <tr>
+            <td>${o.users.username}</td>
+            <td>${o.branches.name}</td>
+            <td>${o.items.name}</td>
+            <td>${o.quantity}</td>
+            <td>${o.status}</td>
+            <td>
+              ${o.status === "pending" ? `
+                <button onclick="editOrder(${o.id}, ${o.quantity})">Edit</button>
+                <button onclick="markSent(${o.id})">Mark Sent</button>
+              ` : ""}
+            </td>
+          </tr>`).join("")}
+      </table>`;
   }
 }
 
-async function updateMyOrderStatus(orderId,status){
-  const { data } = await db.from('orders').select('*').eq('id', orderId).single();
-  if(status==='Received' && data.status!=='Sent') return alert('You can only mark Received after Sent');
-  if(status!=='Received') return alert('You cannot change this');
-  const { error } = await db.from('orders').update({status}).eq('id', orderId);
-  if(error) return alert(error.message);
-  await renderUserOrders(); await renderAdminOrders();
+// EDIT ORDER
+async function editOrder(orderId, currentQty) {
+  const newQty = prompt("Enter new quantity:", currentQty);
+  if (!newQty || isNaN(newQty)) return;
+  await db.from("orders").update({ quantity: parseInt(newQty) }).eq("id", orderId);
+  renderAdminOrders();
 }
 
-// ITEM SELECT
-async function renderItemSelect(){
-  const { data, error } = await db.from('items').select("*");
-  if(error) return console.error(error);
-  const select=document.getElementById('itemSelect'); select.innerHTML='<option value="">Select Item</option>';
-  data.forEach(i=>{ const o=document.createElement('option'); o.value=i.id; o.textContent=i.name; select.appendChild(o); });
+// MARK SENT
+async function markSent(orderId) {
+  await db.from("orders").update({ status: "sent" }).eq("id", orderId);
+  renderAdminOrders();
+  renderUserOrders();
 }
 
-// PLACE ORDER
-async function placeOrder(){
-  const itemId=document.getElementById('itemSelect').value;
-  const qty=parseInt(document.getElementById('orderQuantity').value,10);
-  if(!itemId || !qty) return alert('Select item and quantity!');
-  const { error } = await db.from('orders').insert([{user_id:loggedUser.id,item_id:itemId,quantity:qty,status:'Pending',date:new Date().toISOString()}]);
-  if(error) return alert(error.message);
-  document.getElementById('orderQuantity').value='';
-  await renderUserOrders(); await renderAdminOrders();
-  alert('Order placed successfully!');
+// MARK RECEIVED
+async function markReceived(orderId) {
+  await db.from("orders").update({ status: "received" }).eq("id", orderId);
+  renderUserOrders();
 }
 
 // REPORTS
-async function renderReports(){
-  const userId = document.getElementById('reportUserFilter').value;
-  const branch = document.getElementById('reportBranchFilter').value;
-  let query = db.from('orders').select('id, quantity, status, date, users(username,branch), items(name)').order('date',{ascending:true});
-  if(userId) query = query.eq('user_id', userId);
-  if(branch) query = query.eq('users.branch', branch);
-  const { data, error } = await query;
-  if(error) return console.error(error);
+async function renderReports() {
+  const userFilter = document.getElementById("reportUserFilter").value;
+  const branchFilter = document.getElementById("reportBranchFilter").value;
+  let query = db.from("orders").select("*, users(username), items(name), branches(name)");
+  if (userFilter) query = query.eq("user_id", userFilter);
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+  const { data: orders } = await query;
 
-  let html = '<table><thead><tr><th>ID</th><th>User</th><th>Branch</th><th>Item</th><th>Quantity</th><th>Status</th><th>Date</th></tr></thead><tbody>';
-  data.forEach(o=> html+=`<tr>
-    <td>${o.id}</td>
-    <td>${o.users.username}</td>
-    <td>${o.users.branch}</td>
-    <td>${o.items.name}</td>
-    <td>${o.quantity}</td>
-    <td>${o.status}</td>
-    <td>${o.date ? o.date.split('T')[0] : ''}</td>
-  </tr>`);
-  html += '</tbody></table>';
-  document.getElementById('reportContent').innerHTML = html;
+  const container = document.getElementById("reportContent");
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = "<p>No data found.</p>";
+    return;
+  }
+
+  let grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
+  });
+
+  for (let date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `
+      <table>
+        <tr><th>User</th><th>Branch</th><th>Item</th><th>Qty</th><th>Status</th></tr>
+        ${grouped[date].map(o => `
+          <tr>
+            <td>${o.users.username}</td>
+            <td>${o.branches.name}</td>
+            <td>${o.items.name}</td>
+            <td>${o.quantity}</td>
+            <td>${o.status}</td>
+          </tr>`).join("")}
+      </table>`;
+  }
 }
-
-// Populate report users
-async function renderReportUserSelect(){
-  const { data } = await db.from('users').select("*");
-  const select = document.getElementById('reportUserFilter'); select.innerHTML='<option value="">All Users</option>';
-  data.forEach(u=> select.innerHTML+=`<option value="${u.id}">${u.username}</option>`);
-}
-
-// INITIAL LOAD
-renderBranches(); renderUsers(); renderItems(); renderReportUserSelect(); renderAdminBranchFilter();
 </script>
 </body>
 </html>
