@@ -5,30 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cheesy Order System</title>
 <style>
-body { margin:0; font-family:Arial, sans-serif; background:#f0f0f0; }
+body { margin:0; font-family:Arial,sans-serif; background:#f0f0f0; }
 #loginPage { display:flex; justify-content:center; align-items:center; height:100vh; }
 #loginContainer { background:white; padding:30px; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); width:300px; }
 #loginContainer input { width:100%; padding:10px; margin:10px 0; border-radius:5px; border:1px solid #ccc; }
 #loginContainer button { width:100%; padding:10px; background:#ff6600; color:white; border:none; border-radius:5px; cursor:pointer; }
 #loginContainer button:hover { background:#e65c00; }
-
-#adminDashboard, #userDashboard { display:none; }
+#adminDashboard,#userDashboard { display:none; }
 .sidebar { height:100vh; width:220px; position:fixed; top:0; left:0; background-color:#ff6600; padding-top:20px; color:white; display:flex; flex-direction:column; }
 .sidebar button { background:none; border:none; color:white; padding:15px 20px; text-align:left; width:100%; cursor:pointer; font-size:16px; }
 .sidebar button:hover { background-color:#e65c00; }
 .main { margin-left:220px; padding:20px; }
 .hidden { display:none; }
-input, select, textarea { width:100%; padding:10px; margin:5px 0 15px 0; border-radius:5px; border:1px solid #ccc; }
+input,select,textarea { width:100%; padding:10px; margin:5px 0 15px 0; border-radius:5px; border:1px solid #ccc; }
 button.submitBtn { background-color:#ff6600; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:5px; }
 button.submitBtn:hover { background-color:#e65c00; }
 table { width:100%; border-collapse:collapse; margin-top:10px; }
-th, td { padding:10px; border:1px solid #ccc; text-align:left; }
+th,td { padding:10px; border:1px solid #ccc; text-align:left; }
 .order-date { margin-top:15px; font-weight:bold; }
-@media(max-width:768px) { .sidebar { width:100%; height:auto; position:relative; flex-direction:row; overflow-x:auto; } .sidebar button { flex:1; text-align:center; padding:10px; } .main { margin-left:0; } }
+@media(max-width:768px){
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;overflow-x:auto;}
+  .sidebar button{flex:1;text-align:center;padding:10px;}
+  .main{margin-left:0;}
+}
 </style>
 </head>
 <body>
-
 <!-- LOGIN PAGE -->
 <div id="loginPage">
   <div id="loginContainer">
@@ -38,7 +40,6 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
     <button id="loginBtn">Login</button>
   </div>
 </div>
-
 <!-- ADMIN DASHBOARD -->
 <div id="adminDashboard">
   <div class="sidebar">
@@ -46,22 +47,34 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
     <button onclick="showAdminSection('branches')">Create Branches</button>
     <button onclick="showAdminSection('users')">Create Users</button>
     <button onclick="showAdminSection('items')">Manage Items</button>
+    <button onclick="showAdminSection('inventory')">Inventory</button>
+    <button onclick="showAdminSection('supplierReceipts')">Supplier Receipts</button>
     <button onclick="showAdminSection('reports')">Reports</button>
     <button onclick="logout()">Logout</button>
   </div>
+
   <div class="main">
+    <!-- Orders Section -->
     <div id="orders" class="section hidden">
       <h2>Orders</h2>
       <label>Date: <input type="date" id="adminOrderDateFilter" onchange="renderAdminOrders()"></label>
-      <label>Branch: <select id="adminOrderBranchFilter" onchange="renderAdminOrders()"><option value="">All Branches</option></select></label>
+      <label>Branch: 
+        <select id="adminOrderBranchFilter" onchange="renderAdminOrders()">
+          <option value="">All Branches</option>
+        </select>
+      </label>
       <div id="ordersTableContainer"></div>
     </div>
+
+    <!-- Branches Section -->
     <div id="branches" class="section hidden">
       <h2>Create Branch</h2>
       <input type="text" id="branchName" placeholder="Branch Name">
       <button class="submitBtn" onclick="createBranch()">Add Branch</button>
       <ul id="branchList"></ul>
     </div>
+
+    <!-- Users Section -->
     <div id="users" class="section hidden">
       <h2>Create User</h2>
       <input type="text" id="newUsername" placeholder="Username">
@@ -70,22 +83,87 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
       <button class="submitBtn" onclick="createUser()">Add User</button>
       <ul id="userList"></ul>
     </div>
+
+    <!-- Items Section -->
     <div id="items" class="section hidden">
       <h2>Manage Items</h2>
       <input type="text" id="itemName" placeholder="Item Name">
       <input type="text" id="itemUnit" placeholder="Unit">
+      <input type="number" id="itemUnitValue" placeholder="Unit Value">
+      <input type="number" id="itemStock" placeholder="Initial Stock Quantity">
       <button class="submitBtn" onclick="createItem()">Add Item</button>
       <ul id="itemList"></ul>
     </div>
+    <!-- Inventory Section -->
+    <div id="inventory" class="section hidden">
+      <h2>Inventory</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Unit</th>
+            <th>Unit Value</th>
+            <th>Stock Qty</th>
+            <th>Total Value</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTable"></tbody>
+      </table>
+    </div>
+
+    <!-- Supplier Receipts Section -->
+    <div id="supplierReceipts" class="section hidden">
+      <h2>Supplier Receipts</h2>
+      <label>Filter by Branch: 
+        <select id="receiptBranchFilter" onchange="renderSupplierReceipts()">
+          <option value="">All Branches</option>
+        </select>
+      </label>
+      <div id="supplierReceiptsContainer"></div>
+
+      <h3>Receive Stock from Supplier</h3>
+      <select id="receiveItemSelect"><option value="">Select Item</option></select>
+      <input type="number" id="receiveQuantity" placeholder="Quantity">
+      <input type="text" id="supplierCompany" placeholder="Supplier Company">
+      <input type="text" id="invoiceNo" placeholder="Invoice No">
+      <input type="date" id="receiveDate">
+      <select id="receiveBranchSelect"><option value="">Select Branch</option></select>
+      <button class="submitBtn" onclick="addStock()">Add to Stock</button>
+
+      <!-- Table for Received Stock -->
+      <h4>Received Stock</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Unit</th>
+            <th>Unit Value</th>
+            <th>Quantity</th>
+            <th>Total Value</th>
+          </tr>
+        </thead>
+        <tbody id="receivedStockTable"></tbody>
+      </table>
+    </div>
+
+    <!-- Reports Section -->
     <div id="reports" class="section hidden">
       <h2>Reports</h2>
-      <label>User: <select id="reportUserFilter" onchange="renderReports()"><option value="">All Users</option></select></label>
-      <label>Branch: <select id="reportBranchFilter" onchange="renderReports()"><option value="">All Branches</option></select></label>
+      <label>User: 
+        <select id="reportUserFilter" onchange="renderReports()">
+          <option value="">All Users</option>
+        </select>
+      </label>
+      <label>Branch: 
+        <select id="reportBranchFilter" onchange="renderReports()">
+          <option value="">All Branches</option>
+        </select>
+      </label>
       <div id="reportContent"></div>
     </div>
   </div>
 </div>
-
 <!-- USER DASHBOARD -->
 <div id="userDashboard">
   <div class="sidebar">
@@ -94,21 +172,25 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
     <button onclick="logout()">Logout</button>
   </div>
   <div class="main">
+    <!-- User Orders Section -->
     <div id="userOrders" class="section hidden">
       <h2>My Orders</h2>
       <label>Date: <input type="date" id="userOrderDateFilter" onchange="renderUserOrders()"></label>
       <div id="userOrdersTableContainer"></div>
     </div>
-    <!-- UPDATED PLACE ORDER SECTION -->
+
+    <!-- Place Order Section -->
     <div id="placeOrder" class="section hidden">
       <h2>Place Order</h2>
-      <p id="currentDate"></p>
+      <label for="orderDate">Order Date:</label>
+<input type="date" id="orderDate">
       <select id="itemSelect"><option value="">Select Item</option></select>
+      <span id="stockInfo"></span>
       <input type="number" id="orderQuantity" placeholder="Quantity">
       <button class="submitBtn" onclick="addToCart()">Add to Cart</button>
 
       <h3>Order Cart</h3>
-      <table id="cartTable" style="margin-top:10px; width:100%; border-collapse:collapse;">
+      <table id="cartTable">
         <thead>
           <tr>
             <th>Item</th>
@@ -118,51 +200,91 @@ th, td { padding:10px; border:1px solid #ccc; text-align:left; }
         </thead>
         <tbody></tbody>
       </table>
-      <button class="submitBtn" onclick="submitCart()" style="margin-top:10px;">Submit Order</button>
+      <button class="submitBtn" onclick="submitCart()">Submit Order</button>
     </div>
   </div>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const supabaseUrl = "https://yrsxneflvjehttaralyz.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyc3huZWZsdmplaHR0YXJhbHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0ODg3OTAsImV4cCI6MjA3NDA2NDc5MH0.pZusEI_4v3S38yghZ9YVQ6bxEtL9KODI6MMou8zxz90";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyc3huZWZsdmplaHR0YXJhbHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0ODg3OTAsImV4cCI6MjA3NDA2NDc5MH0.pZusEI_4v3S38yghZ9YVQ6bxEtL9KODI6MMou8zxz90"; // Replace with your actual Supabase key
 const db = supabase.createClient(supabaseUrl, supabaseKey);
+// -------------------- LOAD ITEMS DROPDOWN --------------------
+async function loadItemsDropdown() {
+  const { data: items, error } = await db.from("items").select("*");
+  if (error || !items) {
+    console.error("Error fetching items:", error);
+    return;
+  }
+
+  // User: Place Order
+  const itemSelect = document.getElementById("itemSelect");
+  if (itemSelect) {
+    itemSelect.innerHTML = '<option value="">Select Item</option>' +
+      items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+
+    itemSelect.onchange = async () => {
+      const itemId = itemSelect.value;
+      if (!itemId) {
+        document.getElementById("stockInfo").innerText = "";
+        document.getElementById("stockInfo").dataset.stock = 0;
+        return;
+      }
+      const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+      document.getElementById("stockInfo").innerText = `Stock: ${item.stock_quantity}`;
+      document.getElementById("stockInfo").dataset.stock = item.stock_quantity;
+    };
+  }
+
+  // Admin: Receive Stock
+  const receiveItemSelect = document.getElementById("receiveItemSelect");
+  if (receiveItemSelect) {
+    receiveItemSelect.innerHTML = '<option value="">Select Item</option>' +
+      items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+  }
+}
+
 
 let loggedUser = null;
 let orderCart = [];
-// LOGIN
+
+// -------------------- LOGIN --------------------
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
+  await loadItemsDropdown();
 
+  // Hardcoded admin login
   if (username === "Cheesy" && password === "Cheesy123") {
     loggedUser = { id: "admin", role: "admin", username };
     document.getElementById("loginPage").style.display = "none";
     document.getElementById("adminDashboard").style.display = "block";
-    loadAdminData();
+    await loadAdminData();
+    await loadItemsDropdown();
+    await renderAdminOrders();
+    await renderInventory();
+    await renderSupplierReceipts();
     return;
   }
 
-  const { data, error } = await db
-    .from("users")
+  // User login via Supabase
+  const { data, error } = await db.from("users")
     .select("*")
     .eq("username", username)
     .eq("password", password)
     .single();
 
-  if (error || !data) {
-    alert("Invalid login");
-    return;
-  }
+  if (error || !data) { alert("Invalid login"); return; }
 
   loggedUser = { id: data.id, role: "user", username: data.username, branch: data.branch_id };
   document.getElementById("loginPage").style.display = "none";
   document.getElementById("userDashboard").style.display = "block";
-  loadUserData();
+  await loadUserData();
+  await loadItemsDropdown();
+  renderUserOrders();
 });
 
-// LOGOUT
+// -------------------- LOGOUT --------------------
 function logout() {
   loggedUser = null;
   document.getElementById("loginPage").style.display = "flex";
@@ -170,130 +292,198 @@ function logout() {
   document.getElementById("userDashboard").style.display = "none";
 }
 
-// SHOW ADMIN SECTIONS
+// -------------------- SECTION TOGGLE --------------------
 function showAdminSection(id) {
   document.querySelectorAll("#adminDashboard .section").forEach(s => s.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
 
-// SHOW USER SECTIONS
 function showUserSection(id) {
   document.querySelectorAll("#userDashboard .section").forEach(s => s.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
+  const section = document.getElementById(id);
+  section.classList.remove("hidden");
+
+  if (id === "placeOrder") {
+  const today = new Date().toISOString().split('T')[0];
+  const orderDateInput = document.getElementById("orderDate");
+  orderDateInput.value = today; // sets default date
+}
+}
+</script>
+<script>
+// -------------------- LOAD ADMIN DATA --------------------
+async function loadAdminData() {
+  // Load Branches
+  const { data: branches } = await db.from("branches").select("*");
+  document.getElementById("branchList").innerHTML = branches.map(b => `<li>${b.name}</li>`).join("");
+  document.getElementById("branchSelect").innerHTML = `<option value="">Select Branch</option>` +
+    branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("adminOrderBranchFilter").innerHTML = `<option value="">All Branches</option>` +
+    branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("reportBranchFilter").innerHTML = `<option value="">All Branches</option>` +
+    branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("receiveBranchSelect").innerHTML = `<option value="">Select Branch</option>` +
+    branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+
+  // Load Users
+  const { data: users } = await db.from("users").select("*");
+  document.getElementById("userList").innerHTML = users.map(u => `<li>${u.username}</li>`).join("");
+  document.getElementById("reportUserFilter").innerHTML = `<option value="">All Users</option>` +
+    users.map(u => `<option value="${u.id}">${u.username}</option>`).join("");
+
+  // Load Items
+  const { data: items } = await db.from("items").select("*");
+  document.getElementById("itemList").innerHTML = items.map(i => `<li>${i.name} (${i.unit}) - Stock: ${i.stock_quantity}</li>`).join("");
+
+  // Populate dropdowns for user and supplier actions
+  loadItemsDropdown();
 }
 
-// CREATE BRANCH
+// -------------------- CREATE BRANCH --------------------
 async function createBranch() {
   const name = document.getElementById("branchName").value.trim();
-  if (!name) return;
+  if (!name) return alert("Branch name required!");
   await db.from("branches").insert([{ name }]);
   loadAdminData();
 }
 
-// CREATE USER
+// -------------------- CREATE USER --------------------
 async function createUser() {
   const username = document.getElementById("newUsername").value.trim();
   const password = document.getElementById("newPassword").value.trim();
   const branch_id = document.getElementById("branchSelect").value;
-  if (!username || !password || !branch_id) return;
+  if (!username || !password || !branch_id) return alert("All fields required!");
   await db.from("users").insert([{ username, password, branch_id }]);
   loadAdminData();
 }
 
-// CREATE ITEM
+// -------------------- CREATE ITEM --------------------
 async function createItem() {
   const name = document.getElementById("itemName").value.trim();
   const unit = document.getElementById("itemUnit").value.trim();
-  if (!name || !unit) return;
-  await db.from("items").insert([{ name, unit }]);
+  const unit_value = parseFloat(document.getElementById("itemUnitValue").value);
+  const stock_quantity = parseInt(document.getElementById("itemStock").value) || 0;
+  if (!name || !unit || isNaN(unit_value)) return alert("Invalid item details!");
+  await db.from("items").insert([{ name, unit, unit_value, stock_quantity }]);
   loadAdminData();
+  loadItemsDropdown();
 }
-
-// CART FUNCTIONS
-function addToCart() {
-  const itemId = document.getElementById("itemSelect").value;
-  const qty = parseInt(document.getElementById("orderQuantity").value);
-  if (!itemId || !qty || qty <= 0) return;
-
-  const itemName = document.getElementById("itemSelect").selectedOptions[0].text;
-  orderCart.push({ item_id: itemId, name: itemName, quantity: qty });
-
-  renderCart();
-  document.getElementById("orderQuantity").value = "";
-  document.getElementById("itemSelect").value = "";
-}
-
-function renderCart() {
-  const tbody = document.querySelector("#cartTable tbody");
+</script>
+<script>
+// -------------------- RENDER INVENTORY --------------------
+async function renderInventory() {
+  const { data: items } = await db.from("items").select("*");
+  const tbody = document.getElementById("inventoryTable");
   tbody.innerHTML = "";
-  orderCart.forEach((c, i) => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${c.name}</td>
-        <td>${c.quantity}</td>
-        <td><button onclick="removeCartItem(${i})">Remove</button></td>
-      </tr>`;
+
+  items.forEach(i => {
+    const total = i.unit_value * i.stock_quantity;
+    tbody.innerHTML += `<tr>
+      <td>${i.name}</td>
+      <td>${i.unit}</td>
+      <td>${i.unit_value}</td>
+      <td>${i.stock_quantity}</td>
+      <td>${total}</td>
+      <td><button onclick="editStock(${i.id}, ${i.stock_quantity})">Edit</button></td>
+    </tr>`;
   });
 }
 
-function removeCartItem(index) {
+// -------------------- EDIT STOCK --------------------
+async function editStock(itemId, currentQty) {
+  const newQty = prompt("Enter new stock quantity:", currentQty);
+  if (newQty === null || isNaN(newQty)) return;
+  await db.from("items").update({ stock_quantity: parseInt(newQty) }).eq("id", itemId);
+  renderInventory();
+  loadAdminData(); // Refresh dropdowns and lists
+}
+
+// Ensure inventory updates automatically every 5 seconds
+setInterval(() => {
+  if (loggedUser?.role === "admin") renderInventory();
+}, 5000);
+</script>
+<script>
+// -------------------- ITEM SELECTION SHOW STOCK --------------------
+document.getElementById("itemSelect").addEventListener("change", async () => {
+  const itemId = document.getElementById("itemSelect").value;
+  if (!itemId) {
+    document.getElementById("stockInfo").innerText = "";
+    return;
+  }
+  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+  document.getElementById("stockInfo").innerText = `Stock: ${item.stock_quantity}`;
+  document.getElementById("stockInfo").dataset.stock = item.stock_quantity;
+});
+
+// -------------------- ADD TO CART --------------------
+function addToCart() {
+  const itemId = document.getElementById("itemSelect").value;
+  const qty = parseInt(document.getElementById("orderQuantity").value);
+  if (!itemId || isNaN(qty) || qty <= 0) return alert("Invalid item or quantity");
+
+  const stock = parseInt(document.getElementById("stockInfo").dataset.stock || 0);
+  if (qty > stock) return alert("Quantity exceeds stock!");
+
+  const existing = orderCart.find(i => i.item_id == itemId);
+  if (existing) existing.quantity += qty;
+  else orderCart.push({ item_id: itemId, quantity: qty });
+
+  renderCart();
+}
+
+// -------------------- RENDER CART --------------------
+function renderCart() {
+  const tbody = document.querySelector("#cartTable tbody");
+  tbody.innerHTML = "";
+  orderCart.forEach((c, idx) => {
+    const itemName = document.querySelector(`#itemSelect option[value="${c.item_id}"]`).textContent;
+    tbody.innerHTML += `<tr>
+      <td>${itemName}</td>
+      <td>${c.quantity}</td>
+      <td><button onclick="removeFromCart(${idx})">Remove</button></td>
+    </tr>`;
+  });
+}
+
+// -------------------- REMOVE FROM CART --------------------
+function removeFromCart(index) {
   orderCart.splice(index, 1);
   renderCart();
 }
 
+// -------------------- SUBMIT CART --------------------
 async function submitCart() {
-  if (orderCart.length === 0) {
-    alert("Cart is empty!");
-    return;
-  }
-  const today = new Date().toISOString().split("T")[0];
+  if (orderCart.length === 0) { alert("Cart is empty!"); return; }
+
+  const selectedDate = document.getElementById("orderDate").value || new Date().toISOString().split("T")[0];
+
   for (const item of orderCart) {
     await db.from("orders").insert([{
       user_id: loggedUser.id,
       branch_id: loggedUser.branch,
       item_id: item.item_id,
       quantity: item.quantity,
-      date: today,
+      date: selectedDate,
       status: "pending"
     }]);
   }
+
   orderCart = [];
   renderCart();
   alert("Order submitted!");
   renderUserOrders();
+  renderAdminOrders();
 }
-
-// LOAD ADMIN DATA
-async function loadAdminData() {
-  const { data: branches } = await db.from("branches").select("*");
-  document.getElementById("branchList").innerHTML = branches.map(b => `<li>${b.name}</li>`).join("");
-  document.getElementById("branchSelect").innerHTML = `<option value="">Select Branch</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
-  document.getElementById("adminOrderBranchFilter").innerHTML = `<option value="">All Branches</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
-  document.getElementById("reportBranchFilter").innerHTML = `<option value="">All Branches</option>` + branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
-
-  const { data: users } = await db.from("users").select("*");
-  document.getElementById("userList").innerHTML = users.map(u => `<li>${u.username}</li>`).join("");
-  document.getElementById("reportUserFilter").innerHTML = `<option value="">All Users</option>` + users.map(u => `<option value="${u.id}">${u.username}</option>`).join("");
-
-  const { data: items } = await db.from("items").select("*");
-  document.getElementById("itemList").innerHTML = items.map(i => `<li>${i.name} (${i.unit})</li>`).join("");
-}
-
-// LOAD USER DATA
-async function loadUserData() {
-  const { data: items } = await db.from("items").select("*");
-  document.getElementById("itemSelect").innerHTML = `<option value="">Select Item</option>` + items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
-  renderUserOrders();
-  document.getElementById("currentDate").innerText = "Today: " + new Date().toISOString().split("T")[0];
-}
-
-// RENDER USER ORDERS
+</script>
+<script>
+// -------------------- RENDER USER ORDERS --------------------
 async function renderUserOrders() {
   const filterDate = document.getElementById("userOrderDateFilter").value;
-  let query = db.from("orders").select("*, items(name), branches(name)").eq("user_id", loggedUser.id).order("date");
+  let query = db.from("orders").select("*, items(name)").eq("user_id", loggedUser.id).order("date", { ascending: false });
   if (filterDate) query = query.eq("date", filterDate);
-  const { data: orders } = await query;
 
+  const { data: orders } = await query;
   const container = document.getElementById("userOrdersTableContainer");
   container.innerHTML = "";
 
@@ -302,39 +492,36 @@ async function renderUserOrders() {
     return;
   }
 
-  let grouped = {};
+  // Group orders by date
+  const grouped = {};
   orders.forEach(o => {
     if (!grouped[o.date]) grouped[o.date] = [];
     grouped[o.date].push(o);
   });
 
-  for (let date in grouped) {
+  for (const date in grouped) {
     container.innerHTML += `<div class="order-date">${date}</div>`;
-    container.innerHTML += `
-      <table>
-        <tr><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
-        ${grouped[date].map(o => `
-          <tr>
-            <td>${o.items.name}</td>
-            <td>${o.quantity}</td>
-            <td>${o.status}</td>
-            <td>
-              ${o.status === "sent" ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ""}
-            </td>
-          </tr>`).join("")}
-      </table>`;
+    container.innerHTML += `<table>
+      <tr><th>Item</th><th>Quantity</th><th>Status</th></tr>
+      ${grouped[date].map(o => `<tr>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.status}</td>
+      </tr>`).join("")}
+    </table>`;
   }
 }
-
-// RENDER ADMIN ORDERS
+</script>
+<script>
+// -------------------- RENDER ADMIN ORDERS --------------------
 async function renderAdminOrders() {
   const filterDate = document.getElementById("adminOrderDateFilter").value;
-  const branchFilter = document.getElementById("adminOrderBranchFilter").value;
-  let query = db.from("orders").select("*, items(name), users(username), branches(name)").order("date");
+  const branchId = document.getElementById("adminOrderBranchFilter").value;
+  let query = db.from("orders").select("*, items(name, stock_quantity), users(username)").order("date", { ascending: false });
   if (filterDate) query = query.eq("date", filterDate);
-  if (branchFilter) query = query.eq("branch_id", branchFilter);
-  const { data: orders } = await query;
+  if (branchId) query = query.eq("branch_id", branchId);
 
+  const { data: orders } = await query;
   const container = document.getElementById("ordersTableContainer");
   container.innerHTML = "";
 
@@ -343,95 +530,313 @@ async function renderAdminOrders() {
     return;
   }
 
-  let grouped = {};
+  // Group orders by date
+  const grouped = {};
   orders.forEach(o => {
     if (!grouped[o.date]) grouped[o.date] = [];
     grouped[o.date].push(o);
   });
 
-  for (let date in grouped) {
+  for (const date in grouped) {
     container.innerHTML += `<div class="order-date">${date}</div>`;
-    container.innerHTML += `
-      <table>
-        <tr><th>User</th><th>Branch</th><th>Item</th><th>Qty</th><th>Status</th><th>Action</th></tr>
-        ${grouped[date].map(o => `
-          <tr>
-            <td>${o.users.username}</td>
-            <td>${o.branches.name}</td>
-            <td>${o.items.name}</td>
-            <td>${o.quantity}</td>
-            <td>${o.status}</td>
-            <td>
-              ${o.status === "pending" ? `
-                <button onclick="editOrder(${o.id}, ${o.quantity})">Edit</button>
-                <button onclick="markSent(${o.id})">Mark Sent</button>
-              ` : ""}
-            </td>
-          </tr>`).join("")}
-      </table>`;
+    container.innerHTML += `<table>
+      <tr><th>User</th><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
+      ${grouped[date].map(o => `<tr>
+        <td>${o.users.username}</td>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.status}</td>
+        <td>${o.status === 'pending' ? `<button onclick="markSent(${o.id}, ${o.item_id}, ${o.quantity})">Mark Sent</button>` : ''}</td>
+      </tr>`).join("")}
+    </table>`;
   }
 }
 
-// EDIT ORDER
-async function editOrder(orderId, currentQty) {
-  const newQty = prompt("Enter new quantity:", currentQty);
-  if (!newQty || isNaN(newQty)) return;
-  await db.from("orders").update({ quantity: parseInt(newQty) }).eq("id", orderId);
-  renderAdminOrders();
-}
+// -------------------- MARK SENT (ADMIN) --------------------
+// -------------------- MARK SENT (ADMIN) --------------------
+// -------------------- MARK SENT (ADMIN) --------------------
+// -------------------- MARK SENT (ADMIN) --------------------
+async function markSent(orderId, itemId) {
+  // Fetch the order to get the exact quantity
+  const { data: order, error } = await db.from("orders").select("*").eq("id", orderId).single();
+  if (error || !order) return alert("Order not found!");
 
-// MARK SENT
-async function markSent(orderId) {
-  await db.from("orders").update({ status: "sent" }).eq("id", orderId);
-  renderAdminOrders();
-  renderUserOrders();
-}
+  const orderQty = parseInt(order.quantity); // ensure numeric
+  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+  if (!item) return alert("Item not found!");
 
-// MARK RECEIVED
-async function markReceived(orderId) {
-  await db.from("orders").update({ status: "received" }).eq("id", orderId);
-  renderUserOrders();
-}
+  const stockQty = parseInt(item.stock_quantity);
 
-// REPORTS
-async function renderReports() {
-  const userFilter = document.getElementById("reportUserFilter").value;
-  const branchFilter = document.getElementById("reportBranchFilter").value;
-  let query = db.from("orders").select("*, users(username), items(name), branches(name)");
-  if (userFilter) query = query.eq("user_id", userFilter);
-  if (branchFilter) query = query.eq("branch_id", branchFilter);
-  const { data: orders } = await query;
+  if (orderQty <= stockQty) {
+    await db.from("items").update({ stock_quantity: parseInt(item.stock_quantity) - parseInt(quantity) }).eq("id", itemId);
 
-  const container = document.getElementById("reportContent");
-  container.innerHTML = "";
+    await db.from("orders")
+      .update({ status: "sent" })
+      .eq("id", orderId);
 
-  if (!orders || orders.length === 0) {
-    container.innerHTML = "<p>No data found.</p>";
-    return;
-  }
-
-  let grouped = {};
-  orders.forEach(o => {
-    if (!grouped[o.date]) grouped[o.date] = [];
-    grouped[o.date].push(o);
-  });
-
-  for (let date in grouped) {
-    container.innerHTML += `<div class="order-date">${date}</div>`;
-    container.innerHTML += `
-      <table>
-        <tr><th>User</th><th>Branch</th><th>Item</th><th>Qty</th><th>Status</th></tr>
-        ${grouped[date].map(o => `
-          <tr>
-            <td>${o.users.username}</td>
-            <td>${o.branches.name}</td>
-            <td>${o.items.name}</td>
-            <td>${o.quantity}</td>
-            <td>${o.status}</td>
-          </tr>`).join("")}
-      </table>`;
+    renderInventory();
+    renderAdminOrders();
+    renderUserOrders();
+  } else {
+    alert("Not enough stock to mark as sent!");
   }
 }
 </script>
-</body>
-</html>
+<script>
+// -------------------- ADD STOCK FROM SUPPLIER --------------------
+async function addStock() {
+  const item_id = document.getElementById("receiveItemSelect").value;
+  const quantity = parseInt(document.getElementById("receiveQuantity").value);
+  const company_name = document.getElementById("supplierCompany").value.trim();
+  const invoice_no = document.getElementById("invoiceNo").value.trim();
+  const date = document.getElementById("receiveDate").value;
+  const branch_id = document.getElementById("receiveBranchSelect").value;
+
+  if (!item_id || !quantity || !company_name || !invoice_no || !date || !branch_id)
+    return alert("All fields are required!");
+
+  // Insert into supplier_receipts table
+  await db.from("supplier_receipts").insert([{
+    item_id, quantity, company_name, invoice_no, date, branch_id
+  }]);
+
+  // Update stock in items table
+  const { data: item } = await db.from("items").select("*").eq("id", item_id).single();
+  await db.from("items").update({ stock_quantity: item.stock_quantity + quantity }).eq("id", item_id);
+
+  renderInventory();
+  renderSupplierReceipts();
+  alert("Stock received and updated!");
+}
+
+// -------------------- RENDER SUPPLIER RECEIPTS --------------------
+async function renderSupplierReceipts() {
+  const branchFilter = document.getElementById("receiptBranchFilter").value;
+  let query = db.from("supplier_receipts")
+    .select("*, items(name, unit, unit_value), branches(name)")
+    .order("date", { ascending: false });
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+
+  const { data: receipts } = await query;
+  const container = document.getElementById("supplierReceiptsContainer");
+  container.innerHTML = "";
+
+  if (!receipts || receipts.length === 0) {
+    container.innerHTML = "<p>No supplier receipts found.</p>";
+    return;
+  }
+
+  // Group receipts by invoice_no + date + company
+  const grouped = {};
+  receipts.forEach(r => {
+    const key = `${r.invoice_no}-${r.date}-${r.company_name}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  });
+
+  for (const key in grouped) {
+    const [invoice, date, company] = key.split("-");
+    container.innerHTML += `<h4>Invoice: ${invoice} | Date: ${date} | Company: ${company}</h4>`;
+    container.innerHTML += `<table>
+      <tr><th>Item</th><th>Unit</th><th>Unit Value</th><th>Quantity</th><th>Total</th><th>Branch</th></tr>
+      ${grouped[key].map(r => `<tr>
+        <td>${r.items.name}</td>
+        <td>${r.items.unit}</td>
+        <td>${r.items.unit_value}</td>
+        <td>${r.quantity}</td>
+        <td>${r.items.unit_value * r.quantity}</td>
+        <td>${r.branches.name}</td>
+      </tr>`).join("")}
+    </table>`;
+  }
+}
+</script>
+<script>
+// -------------------- RENDER USER ORDERS --------------------
+async function renderUserOrders() {
+  const filterDate = document.getElementById("userOrderDateFilter").value;
+  let query = db.from("orders")
+    .select("*, items(name, unit, unit_value), users(username), branches(name)")
+    .eq("user_id", loggedUser.id)
+    .order("date", { ascending: false });
+  if (filterDate) query = query.eq("date", filterDate);
+
+  const { data: orders } = await query;
+  const container = document.getElementById("userOrdersTableContainer");
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  // Group orders by date
+  const grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
+  });
+
+  for (const date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `<table>
+      <tr><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
+      ${grouped[date].map(o => `<tr>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.status}</td>
+        <td>${o.status === 'sent' ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ''}</td>
+      </tr>`).join("")}
+    </table>`;
+  }
+}
+
+// -------------------- MARK RECEIVED (USER) --------------------
+async function markReceived(orderId) {
+  const { data: order } = await db.from("orders").select("*").eq("id", orderId).single();
+  if (!order) return alert("Order not found!");
+
+  if (order.status !== "sent") return alert("Order is not marked sent yet!");
+
+  await db.from("orders").update({ status: "received" }).eq("id", orderId);
+  renderUserOrders();
+  renderAdminOrders(); // Update admin view as well
+  alert("Order marked as received!");
+}
+</script>
+<script>
+// -------------------- MARK SENT (ADMIN) --------------------
+async function markSent(orderId, itemId, quantity) {
+  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+  if (!item) return alert("Item not found!");
+
+  // Deduct exact order quantity only if stock is sufficient
+  if (item.stock_quantity >= quantity) {
+    await db.from("items").update({ stock_quantity: item.stock_quantity - quantity }).eq("id", itemId);
+    await db.from("orders").update({ status: "sent" }).eq("id", orderId);
+    renderInventory();
+    renderAdminOrders();
+    renderUserOrders();
+  } else {
+    alert("Not enough stock to mark as sent!");
+  }
+}
+</script>
+<script>
+// -------------------- RENDER SUPPLIER RECEIPTS WITH FULL TABLE --------------------
+async function renderSupplierReceipts() {
+  const branchFilter = document.getElementById("receiptBranchFilter").value;
+  let query = db.from("supplier_receipts")
+    .select("*, items(name, unit, unit_value), branches(name)")
+    .order("date", { ascending: false });
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+
+  const { data: receipts } = await query;
+  const container = document.getElementById("supplierReceiptsContainer");
+  container.innerHTML = "";
+
+  if (!receipts || receipts.length === 0) {
+    container.innerHTML = "<p>No supplier receipts found.</p>";
+    return;
+  }
+
+  // Group receipts by invoice_no + date + company
+  const grouped = {};
+  receipts.forEach(r => {
+    const key = `${r.invoice_no}-${r.date}-${r.company_name}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  });
+
+  for (const key in grouped) {
+    const [invoice, date, company] = key.split("-");
+    container.innerHTML += `<h4>Invoice: ${invoice} | Date: ${date} | Company: ${company}</h4>`;
+    container.innerHTML += `<table>
+      <tr>
+        <th>Item</th>
+        <th>Unit</th>
+        <th>Unit Value</th>
+        <th>Quantity</th>
+        <th>Total Value</th>
+        <th>Branch</th>
+      </tr>
+      ${grouped[key].map(r => `<tr>
+        <td>${r.items.name}</td>
+        <td>${r.items.unit}</td>
+        <td>${r.items.unit_value}</td>
+        <td>${r.quantity}</td>
+        <td>${(r.items.unit_value * r.quantity).toFixed(2)}</td>
+        <td>${r.branches.name}</td>
+      </tr>`).join("")}
+    </table>`;
+  }
+}
+</script>
+<script>
+// -------------------- MARK SENT (ADMIN) --------------------
+async function markSent(orderId, itemId, quantity) {
+  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+  if (!item) return alert("Item not found!");
+
+  if (item.stock_quantity >= quantity) {
+    // Deduct exact order quantity from inventory
+    await db.from("items").update({ stock_quantity: item.stock_quantity - quantity }).eq("id", itemId);
+    await db.from("orders").update({ status: "sent" }).eq("id", orderId);
+    renderInventory();
+    renderAdminOrders();
+    renderUserOrders();
+  } else {
+    alert("Not enough stock to mark as sent!");
+  }
+}
+
+// -------------------- MARK RECEIVED (USER) --------------------
+async function markReceived(orderId) {
+  // User confirms receipt of sent order
+  await db.from("orders").update({ status: "received" }).eq("id", orderId);
+  renderUserOrders();
+  renderAdminOrders();
+  alert("Order marked as received!");
+}
+
+// -------------------- RENDER USER ORDERS WITH MARK RECEIVED BUTTON --------------------
+async function renderUserOrders() {
+  const filterDate = document.getElementById("userOrderDateFilter").value;
+  let query = db.from("orders").select("*, items(name)").eq("user_id", loggedUser.id).order("date", { ascending: false });
+  if (filterDate) query = query.eq("date", filterDate);
+
+  const { data: orders } = await query;
+  const container = document.getElementById("userOrdersTableContainer");
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  const grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
+  });
+
+  for (const date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `<table>
+      <tr><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
+      ${grouped[date].map(o => `<tr>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.status}</td>
+        <td>${o.status === 'sent' ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ''}</td>
+      </tr>`).join("")}
+    </table>`;
+  }
+}
+// -------------------- LOAD ITEMS DROPDOWN --------------------
+
+
+// -------------------- ENSURE DEDUCTION LOGIC --------------------
+// Deduction only happens when Admin marks sent and quantity <= stock
+// User can then mark received without changing stock
+</script>
