@@ -44,6 +44,7 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
 <div id="adminDashboard">
   <div class="sidebar">
     <button onclick="showAdminSection('orders')">See Orders</button>
+    <button onclick="showAdminSection('sentOrders')">Sent Orders</button>
     <button onclick="showAdminSection('branches')">Create Branches</button>
     <button onclick="showAdminSection('users')">Create Users</button>
     <button onclick="showAdminSection('items')">Manage Items</button>
@@ -52,18 +53,39 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
     <button onclick="showAdminSection('reports')">Reports</button>
     <button onclick="logout()">Logout</button>
   </div>
-
   <div class="main">
     <!-- Orders Section -->
-    <div id="orders" class="section hidden">
-      <h2>Orders</h2>
-      <label>Date: <input type="date" id="adminOrderDateFilter" onchange="renderAdminOrders()"></label>
-      <label>Branch: 
-        <select id="adminOrderBranchFilter" onchange="renderAdminOrders()">
-          <option value="">All Branches</option>
+    <!-- Orders Section -->
+<div id="orders" class="section hidden">
+  <h2>Orders</h2>
+  <label>Date: <input type="date" id="adminOrderDateFilter" onchange="renderAdminOrders()"></label>
+  <label>Branch: 
+    <select id="adminOrderBranchFilter" onchange="renderAdminOrders()">
+      <option value="">All Branches</option>
+      <label>Item: 
+  <select id="sentOrderItemFilter" onchange="renderAdminOrders()">
+    <option value="">All Items</option>
+  </select>
+</label>
+    </select>
+  </label>
+  <label>User: 
+    <select id="reportUserFilter" onchange="renderAdminOrders()">
+      <option value="">All Users</option>
+    </select>
+  </label>
+  <div id="ordersTableContainer"></div>
+</div>
+
+    <!-- Sent Orders Section -->
+    <div id="sentOrders" class="section hidden">
+      <h2>Sent Orders</h2>
+      <label>Filter by Item: 
+        <select id="sentOrderItemFilter" onchange="renderSentOrders()">
+          <option value="">All Items</option>
         </select>
       </label>
-      <div id="ordersTableContainer"></div>
+      <div id="sentOrdersContainer"></div>
     </div>
 
     <!-- Branches Section -->
@@ -73,7 +95,6 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
       <button class="submitBtn" onclick="createBranch()">Add Branch</button>
       <ul id="branchList"></ul>
     </div>
-
     <!-- Users Section -->
     <div id="users" class="section hidden">
       <h2>Create User</h2>
@@ -94,6 +115,7 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
       <button class="submitBtn" onclick="createItem()">Add Item</button>
       <ul id="itemList"></ul>
     </div>
+
     <!-- Inventory Section -->
     <div id="inventory" class="section hidden">
       <h2>Inventory</h2>
@@ -111,7 +133,6 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
         <tbody id="inventoryTable"></tbody>
       </table>
     </div>
-
     <!-- Supplier Receipts Section -->
     <div id="supplierReceipts" class="section hidden">
       <h2>Supplier Receipts</h2>
@@ -146,7 +167,6 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
         <tbody id="receivedStockTable"></tbody>
       </table>
     </div>
-
     <!-- Reports Section -->
     <div id="reports" class="section hidden">
       <h2>Reports</h2>
@@ -164,6 +184,7 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
     </div>
   </div>
 </div>
+
 <!-- USER DASHBOARD -->
 <div id="userDashboard">
   <div class="sidebar">
@@ -183,7 +204,7 @@ th,td { padding:10px; border:1px solid #ccc; text-align:left; }
     <div id="placeOrder" class="section hidden">
       <h2>Place Order</h2>
       <label for="orderDate">Order Date:</label>
-<input type="date" id="orderDate">
+      <input type="date" id="orderDate">
       <select id="itemSelect"><option value="">Select Item</option></select>
       <span id="stockInfo"></span>
       <input type="number" id="orderQuantity" placeholder="Quantity">
@@ -217,33 +238,45 @@ async function loadItemsDropdown() {
     return;
   }
 
-  // User: Place Order
+  console.log("Items loaded:", items); // debug
+
+  // User dropdown
   const itemSelect = document.getElementById("itemSelect");
   if (itemSelect) {
     itemSelect.innerHTML = '<option value="">Select Item</option>' +
       items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
 
-    itemSelect.onchange = async () => {
+    itemSelect.onchange = () => {
       const itemId = itemSelect.value;
-      if (!itemId) {
-        document.getElementById("stockInfo").innerText = "";
-        document.getElementById("stockInfo").dataset.stock = 0;
-        return;
+      const selectedItem = items.find(i => i.id == itemId);
+      const stockInfo = document.getElementById("stockInfo");
+      if (!selectedItem) {
+        stockInfo.innerText = "";
+        stockInfo.dataset.stock = 0;
+      } else {
+        stockInfo.innerText = `Stock: ${selectedItem.stock_quantity}`;
+        stockInfo.dataset.stock = selectedItem.stock_quantity;
       }
-      const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
-      document.getElementById("stockInfo").innerText = `Stock: ${item.stock_quantity}`;
-      document.getElementById("stockInfo").dataset.stock = item.stock_quantity;
     };
   }
 
-  // Admin: Receive Stock
+  // Admin dropdown (receive stock)
   const receiveItemSelect = document.getElementById("receiveItemSelect");
   if (receiveItemSelect) {
     receiveItemSelect.innerHTML = '<option value="">Select Item</option>' +
       items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
   }
 }
+async function loadSentOrderItemsDropdown() {
+  const { data: items, error } = await db.from("items").select("*");
+  if (error || !items) return console.error("Error fetching items:", error);
 
+  const itemSelect = document.getElementById("sentOrderItemFilter");
+  if (itemSelect) {
+    itemSelect.innerHTML = '<option value="">All Items</option>' +
+      items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+  }
+}
 
 let loggedUser = null;
 let orderCart = [];
@@ -252,11 +285,10 @@ let orderCart = [];
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
-  await loadItemsDropdown();
 
   // Hardcoded admin login
   if (username === "Cheesy" && password === "Cheesy123") {
-    loggedUser = { id: "admin", role: "admin", username };
+    loggedUser = { id: "admin", role: "admin", username: "Cheesy" };
     document.getElementById("loginPage").style.display = "none";
     document.getElementById("adminDashboard").style.display = "block";
     await loadAdminData();
@@ -264,19 +296,22 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
     await renderAdminOrders();
     await renderInventory();
     await renderSupplierReceipts();
-    return;
+    return; // Stop further login code execution
   }
 
-  // User login via Supabase
-  const { data, error } = await db.from("users")
+  // Normal user login via Supabase
+  const { data: user, error } = await db.from("users")
     .select("*")
     .eq("username", username)
     .eq("password", password)
     .single();
 
-  if (error || !data) { alert("Invalid login"); return; }
+  if (error || !user) {
+    alert("Invalid login");
+    return;
+  }
 
-  loggedUser = { id: data.id, role: "user", username: data.username, branch: data.branch_id };
+  loggedUser = { id: user.id, role: "user", username: user.username, branch: user.branch_id };
   document.getElementById("loginPage").style.display = "none";
   document.getElementById("userDashboard").style.display = "block";
   await loadUserData();
@@ -300,14 +335,12 @@ function showAdminSection(id) {
 
 function showUserSection(id) {
   document.querySelectorAll("#userDashboard .section").forEach(s => s.classList.add("hidden"));
-  const section = document.getElementById(id);
-  section.classList.remove("hidden");
+  document.getElementById(id).classList.remove("hidden");
 
   if (id === "placeOrder") {
-  const today = new Date().toISOString().split('T')[0];
-  const orderDateInput = document.getElementById("orderDate");
-  orderDateInput.value = today; // sets default date
-}
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById("orderDate").value = today;
+  }
 }
 </script>
 <script>
@@ -336,7 +369,12 @@ async function loadAdminData() {
   document.getElementById("itemList").innerHTML = items.map(i => `<li>${i.name} (${i.unit}) - Stock: ${i.stock_quantity}</li>`).join("");
 
   // Populate dropdowns for user and supplier actions
+  
   loadItemsDropdown();
+  await loadSentOrderItemsDropdown();
+  const itemFilter = document.getElementById("sentOrderItemFilter");
+itemFilter.innerHTML = '<option value="">All Items</option>' + 
+  items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
 }
 
 // -------------------- CREATE BRANCH --------------------
@@ -390,15 +428,15 @@ async function renderInventory() {
 }
 
 // -------------------- EDIT STOCK --------------------
-async function editStock(itemId, currentQty) {
-  const newQty = prompt("Enter new stock quantity:", currentQty);
-  if (newQty === null || isNaN(newQty)) return;
-  await db.from("items").update({ stock_quantity: parseInt(newQty) }).eq("id", itemId);
-  renderInventory();
-  loadAdminData(); // Refresh dropdowns and lists
-}
+//async function editStock(itemId, currentQty) {
+  //const newQty = prompt("Enter new stock quantity:", currentQty);
+  //if (newQty === null || isNaN(newQty)) return;
+  //await db.from("items").update({ stock_quantity: parseInt(newQty) }).eq("id", itemId);
+  //renderInventory();
+  //loadAdminData(); // Refresh dropdowns and lists
+//}
 
-// Ensure inventory updates automatically every 5 seconds
+// -------------------- AUTO REFRESH INVENTORY --------------------
 setInterval(() => {
   if (loggedUser?.role === "admin") renderInventory();
 }, 5000);
@@ -409,6 +447,7 @@ document.getElementById("itemSelect").addEventListener("change", async () => {
   const itemId = document.getElementById("itemSelect").value;
   if (!itemId) {
     document.getElementById("stockInfo").innerText = "";
+    document.getElementById("stockInfo").dataset.stock = 0;
     return;
   }
   const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
@@ -480,185 +519,11 @@ async function submitCart() {
 // -------------------- RENDER USER ORDERS --------------------
 async function renderUserOrders() {
   const filterDate = document.getElementById("userOrderDateFilter").value;
-  let query = db.from("orders").select("*, items(name)").eq("user_id", loggedUser.id).order("date", { ascending: false });
-  if (filterDate) query = query.eq("date", filterDate);
-
-  const { data: orders } = await query;
-  const container = document.getElementById("userOrdersTableContainer");
-  container.innerHTML = "";
-
-  if (!orders || orders.length === 0) {
-    container.innerHTML = "<p>No orders found.</p>";
-    return;
-  }
-
-  // Group orders by date
-  const grouped = {};
-  orders.forEach(o => {
-    if (!grouped[o.date]) grouped[o.date] = [];
-    grouped[o.date].push(o);
-  });
-
-  for (const date in grouped) {
-    container.innerHTML += `<div class="order-date">${date}</div>`;
-    container.innerHTML += `<table>
-      <tr><th>Item</th><th>Quantity</th><th>Status</th></tr>
-      ${grouped[date].map(o => `<tr>
-        <td>${o.items.name}</td>
-        <td>${o.quantity}</td>
-        <td>${o.status}</td>
-      </tr>`).join("")}
-    </table>`;
-  }
-}
-</script>
-<script>
-// -------------------- RENDER ADMIN ORDERS --------------------
-async function renderAdminOrders() {
-  const filterDate = document.getElementById("adminOrderDateFilter").value;
-  const branchId = document.getElementById("adminOrderBranchFilter").value;
-  let query = db.from("orders").select("*, items(name, stock_quantity), users(username)").order("date", { ascending: false });
-  if (filterDate) query = query.eq("date", filterDate);
-  if (branchId) query = query.eq("branch_id", branchId);
-
-  const { data: orders } = await query;
-  const container = document.getElementById("ordersTableContainer");
-  container.innerHTML = "";
-
-  if (!orders || orders.length === 0) {
-    container.innerHTML = "<p>No orders found.</p>";
-    return;
-  }
-
-  // Group orders by date
-  const grouped = {};
-  orders.forEach(o => {
-    if (!grouped[o.date]) grouped[o.date] = [];
-    grouped[o.date].push(o);
-  });
-
-  for (const date in grouped) {
-    container.innerHTML += `<div class="order-date">${date}</div>`;
-    container.innerHTML += `<table>
-      <tr><th>User</th><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
-      ${grouped[date].map(o => `<tr>
-        <td>${o.users.username}</td>
-        <td>${o.items.name}</td>
-        <td>${o.quantity}</td>
-        <td>${o.status}</td>
-        <td>${o.status === 'pending' ? `<button onclick="markSent(${o.id}, ${o.item_id}, ${o.quantity})">Mark Sent</button>` : ''}</td>
-      </tr>`).join("")}
-    </table>`;
-  }
-}
-
-// -------------------- MARK SENT (ADMIN) --------------------
-// -------------------- MARK SENT (ADMIN) --------------------
-// -------------------- MARK SENT (ADMIN) --------------------
-// -------------------- MARK SENT (ADMIN) --------------------
-async function markSent(orderId, itemId) {
-  // Fetch the order to get the exact quantity
-  const { data: order, error } = await db.from("orders").select("*").eq("id", orderId).single();
-  if (error || !order) return alert("Order not found!");
-
-  const orderQty = parseInt(order.quantity); // ensure numeric
-  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
-  if (!item) return alert("Item not found!");
-
-  const stockQty = parseInt(item.stock_quantity);
-
-  if (orderQty <= stockQty) {
-    await db.from("items").update({ stock_quantity: parseInt(item.stock_quantity) - parseInt(quantity) }).eq("id", itemId);
-
-    await db.from("orders")
-      .update({ status: "sent" })
-      .eq("id", orderId);
-
-    renderInventory();
-    renderAdminOrders();
-    renderUserOrders();
-  } else {
-    alert("Not enough stock to mark as sent!");
-  }
-}
-</script>
-<script>
-// -------------------- ADD STOCK FROM SUPPLIER --------------------
-async function addStock() {
-  const item_id = document.getElementById("receiveItemSelect").value;
-  const quantity = parseInt(document.getElementById("receiveQuantity").value);
-  const company_name = document.getElementById("supplierCompany").value.trim();
-  const invoice_no = document.getElementById("invoiceNo").value.trim();
-  const date = document.getElementById("receiveDate").value;
-  const branch_id = document.getElementById("receiveBranchSelect").value;
-
-  if (!item_id || !quantity || !company_name || !invoice_no || !date || !branch_id)
-    return alert("All fields are required!");
-
-  // Insert into supplier_receipts table
-  await db.from("supplier_receipts").insert([{
-    item_id, quantity, company_name, invoice_no, date, branch_id
-  }]);
-
-  // Update stock in items table
-  const { data: item } = await db.from("items").select("*").eq("id", item_id).single();
-  await db.from("items").update({ stock_quantity: item.stock_quantity + quantity }).eq("id", item_id);
-
-  renderInventory();
-  renderSupplierReceipts();
-  alert("Stock received and updated!");
-}
-
-// -------------------- RENDER SUPPLIER RECEIPTS --------------------
-async function renderSupplierReceipts() {
-  const branchFilter = document.getElementById("receiptBranchFilter").value;
-  let query = db.from("supplier_receipts")
-    .select("*, items(name, unit, unit_value), branches(name)")
-    .order("date", { ascending: false });
-  if (branchFilter) query = query.eq("branch_id", branchFilter);
-
-  const { data: receipts } = await query;
-  const container = document.getElementById("supplierReceiptsContainer");
-  container.innerHTML = "";
-
-  if (!receipts || receipts.length === 0) {
-    container.innerHTML = "<p>No supplier receipts found.</p>";
-    return;
-  }
-
-  // Group receipts by invoice_no + date + company
-  const grouped = {};
-  receipts.forEach(r => {
-    const key = `${r.invoice_no}-${r.date}-${r.company_name}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(r);
-  });
-
-  for (const key in grouped) {
-    const [invoice, date, company] = key.split("-");
-    container.innerHTML += `<h4>Invoice: ${invoice} | Date: ${date} | Company: ${company}</h4>`;
-    container.innerHTML += `<table>
-      <tr><th>Item</th><th>Unit</th><th>Unit Value</th><th>Quantity</th><th>Total</th><th>Branch</th></tr>
-      ${grouped[key].map(r => `<tr>
-        <td>${r.items.name}</td>
-        <td>${r.items.unit}</td>
-        <td>${r.items.unit_value}</td>
-        <td>${r.quantity}</td>
-        <td>${r.items.unit_value * r.quantity}</td>
-        <td>${r.branches.name}</td>
-      </tr>`).join("")}
-    </table>`;
-  }
-}
-</script>
-<script>
-// -------------------- RENDER USER ORDERS --------------------
-async function renderUserOrders() {
-  const filterDate = document.getElementById("userOrderDateFilter").value;
   let query = db.from("orders")
     .select("*, items(name, unit, unit_value), users(username), branches(name)")
     .eq("user_id", loggedUser.id)
     .order("date", { ascending: false });
+
   if (filterDate) query = query.eq("date", filterDate);
 
   const { data: orders } = await query;
@@ -695,118 +560,53 @@ async function renderUserOrders() {
 async function markReceived(orderId) {
   const { data: order } = await db.from("orders").select("*").eq("id", orderId).single();
   if (!order) return alert("Order not found!");
-
   if (order.status !== "sent") return alert("Order is not marked sent yet!");
 
-  await db.from("orders").update({ status: "received" }).eq("id", orderId);
-  renderUserOrders();
-  renderAdminOrders(); // Update admin view as well
-  alert("Order marked as received!");
-}
-</script>
-<script>
-// -------------------- MARK SENT (ADMIN) --------------------
-async function markSent(orderId, itemId, quantity) {
-  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
-  if (!item) return alert("Item not found!");
-
-  // Deduct exact order quantity only if stock is sufficient
-  if (item.stock_quantity >= quantity) {
-    await db.from("items").update({ stock_quantity: item.stock_quantity - quantity }).eq("id", itemId);
-    await db.from("orders").update({ status: "sent" }).eq("id", orderId);
-    renderInventory();
-    renderAdminOrders();
-    renderUserOrders();
-  } else {
-    alert("Not enough stock to mark as sent!");
-  }
-}
-</script>
-<script>
-// -------------------- RENDER SUPPLIER RECEIPTS WITH FULL TABLE --------------------
-async function renderSupplierReceipts() {
-  const branchFilter = document.getElementById("receiptBranchFilter").value;
-  let query = db.from("supplier_receipts")
-    .select("*, items(name, unit, unit_value), branches(name)")
-    .order("date", { ascending: false });
-  if (branchFilter) query = query.eq("branch_id", branchFilter);
-
-  const { data: receipts } = await query;
-  const container = document.getElementById("supplierReceiptsContainer");
-  container.innerHTML = "";
-
-  if (!receipts || receipts.length === 0) {
-    container.innerHTML = "<p>No supplier receipts found.</p>";
-    return;
-  }
-
-  // Group receipts by invoice_no + date + company
-  const grouped = {};
-  receipts.forEach(r => {
-    const key = `${r.invoice_no}-${r.date}-${r.company_name}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(r);
-  });
-
-  for (const key in grouped) {
-    const [invoice, date, company] = key.split("-");
-    container.innerHTML += `<h4>Invoice: ${invoice} | Date: ${date} | Company: ${company}</h4>`;
-    container.innerHTML += `<table>
-      <tr>
-        <th>Item</th>
-        <th>Unit</th>
-        <th>Unit Value</th>
-        <th>Quantity</th>
-        <th>Total Value</th>
-        <th>Branch</th>
-      </tr>
-      ${grouped[key].map(r => `<tr>
-        <td>${r.items.name}</td>
-        <td>${r.items.unit}</td>
-        <td>${r.items.unit_value}</td>
-        <td>${r.quantity}</td>
-        <td>${(r.items.unit_value * r.quantity).toFixed(2)}</td>
-        <td>${r.branches.name}</td>
-      </tr>`).join("")}
-    </table>`;
-  }
-}
-</script>
-<script>
-// -------------------- MARK SENT (ADMIN) --------------------
-async function markSent(orderId, itemId, quantity) {
-  const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
-  if (!item) return alert("Item not found!");
-
-  if (item.stock_quantity >= quantity) {
-    // Deduct exact order quantity from inventory
-    await db.from("items").update({ stock_quantity: item.stock_quantity - quantity }).eq("id", itemId);
-    await db.from("orders").update({ status: "sent" }).eq("id", orderId);
-    renderInventory();
-    renderAdminOrders();
-    renderUserOrders();
-  } else {
-    alert("Not enough stock to mark as sent!");
-  }
-}
-
-// -------------------- MARK RECEIVED (USER) --------------------
-async function markReceived(orderId) {
-  // User confirms receipt of sent order
   await db.from("orders").update({ status: "received" }).eq("id", orderId);
   renderUserOrders();
   renderAdminOrders();
   alert("Order marked as received!");
 }
+</script>
+<script>
+  async function loadAdminFilters() {
+  // Load branches
+  const { data: branches } = await db.from("branches").select("*");
+  const branchFilter = document.getElementById("adminOrderBranchFilter");
+  if (branchFilter) {
+    branchFilter.innerHTML = `<option value="">All Branches</option>` +
+      branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  }
 
-// -------------------- RENDER USER ORDERS WITH MARK RECEIVED BUTTON --------------------
-async function renderUserOrders() {
-  const filterDate = document.getElementById("userOrderDateFilter").value;
-  let query = db.from("orders").select("*, items(name)").eq("user_id", loggedUser.id).order("date", { ascending: false });
+  // Load users
+  const { data: users } = await db.from("users").select("*");
+  const userFilter = document.getElementById("reportUserFilter");
+  if (userFilter) {
+    userFilter.innerHTML = `<option value="">All Users</option>` +
+      users.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+  }
+}
+// -------------------- RENDER ADMIN ORDERS --------------------
+async function renderAdminOrders() {
+  const filterDate = document.getElementById("adminOrderDateFilter").value;
+  const branchId = document.getElementById("adminOrderBranchFilter").value;
+   const itemId = document.getElementById("sentOrderItemFilter").value;
+
+  const userId = document.getElementById("reportUserFilter")?.value || "";
+
+  let query = db.from("orders")
+    .select("*, items(name, stock_quantity), users(username)")
+    .order("date", { ascending: false });
+
   if (filterDate) query = query.eq("date", filterDate);
+  if (branchId) query = query.eq("branch_id", branchId);
+  if (itemId) query = query.eq("item_id", itemId);
+  const itemId = document.getElementById("sentOrderItemFilter").value;
+if (itemId) query = query.eq("item_id", itemId);
+  if (userId) query = query.eq("user_id", userId);
 
   const { data: orders } = await query;
-  const container = document.getElementById("userOrdersTableContainer");
+  const container = document.getElementById("ordersTableContainer");
   container.innerHTML = "";
 
   if (!orders || orders.length === 0) {
@@ -823,20 +623,536 @@ async function renderUserOrders() {
   for (const date in grouped) {
     container.innerHTML += `<div class="order-date">${date}</div>`;
     container.innerHTML += `<table>
-      <tr><th>Item</th><th>Quantity</th><th>Status</th><th>Action</th></tr>
+      <tr>
+        <th>User</th>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+      ${grouped[date].map(o => {
+        const stockQty = parseInt(o.items.stock_quantity, 10);
+        return `<tr>
+          <td>${o.users.username}</td>
+          <td>${o.items.name}</td>
+          <td>
+            ${o.status === 'pending' 
+              ? `<input type="number" id="orderQty-${o.id}" value="${o.quantity}" min="1" max="${stockQty}">`
+              : o.quantity
+            }
+          </td>
+          <td>${o.status}</td>
+          <td>
+            ${o.status === 'pending' 
+              ? `<button onclick="markSent(${o.id}, ${o.item_id})">Mark Sent</button>` 
+              : ''
+            }
+          </td>
+        </tr>`;
+      }).join("")}
+    </table>`;
+  }
+}
+</script>
+<script>
+// -------------------- MARK SENT (ADMIN) --------------------
+async function markSent(orderId,item_id) {
+    // Just update the order status, DO NOT touch stock
+    const { error } = await db.from('orders').update({ status: 'sent' }).eq('id', orderId);
+
+    if (error) {
+        alert('Failed to mark sent: ' + error.message);
+        return;
+    }
+
+    // Update table display
+    const inputField = document.getElementById(`orderQty-${orderId}`);
+    if (inputField) inputField.disabled = true;
+
+    const row = inputField?.closest('tr');
+    if (row) row.cells[3].innerText = 'sent';
+
+    alert('Order marked as sent. Inventory NOT affected.');
+}
+</script>
+<script>
+// -------------------- MARK RECEIVED (USER) --------------------
+async function markReceived(orderId) {
+  const { data: order, error } = await db.from("orders").select("*").eq("id", orderId).single();
+  if (error || !order) return alert("Order not found!");
+
+  if (order.status !== "sent") return alert("Order is not marked sent yet!");
+
+  await db.from("orders").update({ status: "received" }).eq("id", orderId);
+
+  renderUserOrders();
+  renderAdminOrders(); // Update admin view as well
+  alert("Order marked as received!");
+}
+
+// -------------------- RENDER SENT ORDERS (ADMIN) --------------------
+async function renderSentOrders() {
+  const container = document.getElementById("sentOrdersContainer");
+  if (!container) return;
+
+  const itemFilter = document.getElementById("sentOrderItemFilter").value;
+
+  let query = db.from("orders")
+    .select("*, items(name, unit), users(username)")
+    .eq("status", "sent")
+    .order("date", { ascending: false });
+
+  if (itemFilter) query = query.eq("item_id", itemFilter);
+
+  const { data: orders, error } = await query;
+  container.innerHTML = "";
+
+  if (error || !orders || orders.length === 0) {
+    container.innerHTML = "<p>No sent orders found.</p>";
+    return;
+  }
+
+  // Calculate total sent quantity per item
+  const totals = {};
+  orders.forEach(o => {
+    if (!totals[o.item_id]) totals[o.item_id] = 0;
+    totals[o.item_id] += parseInt(o.quantity, 10);
+  });
+
+  container.innerHTML += `<table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${orders.map(o => `<tr>
+        <td>${o.users.username}</td>
+        <td>${o.items.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.date}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  container.innerHTML += `<p>Total sent quantity per item:</p><ul>
+    ${Object.keys(totals).map(id => {
+      const itemName = orders.find(o => o.item_id == id).items.name;
+      return `<li>${itemName}: ${totals[id]}</li>`;
+    }).join('')}
+  </ul>`;
+}
+</script>
+<script>
+// -------------------- RENDER SUPPLIER RECEIPTS WITH BRANCH FILTER --------------------
+async function renderSupplierReceipts() {
+  const container = document.getElementById("supplierReceiptsContainer");
+  if (!container) return;
+
+  const branchFilter = document.getElementById("receiptBranchFilter").value;
+
+  let query = db.from("supplier_receipts")
+    .select("*, items(name, unit, unit_value), branches(name)")
+    .order("date", { ascending: false });
+
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+
+  const { data: receipts, error } = await query;
+  container.innerHTML = "";
+
+  if (error || !receipts || receipts.length === 0) {
+    container.innerHTML = "<p>No stock received yet.</p>";
+    return;
+  }
+
+  container.innerHTML = `<table>
+    <thead>
+      <tr>
+        <th>Invoice</th>
+        <th>Date</th>
+        <th>Company</th>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Unit</th>
+        <th>Unit Value</th>
+        <th>Total Value</th>
+        <th>Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${receipts.map(r => {
+        const total = parseFloat(r.items.unit_value) * parseInt(r.quantity, 10);
+        return `<tr>
+          <td>${r.invoice_no}</td>
+          <td>${r.date}</td>
+          <td>${r.company_name}</td>
+          <td>${r.items.name}</td>
+          <td>${r.quantity}</td>
+          <td>${r.items.unit}</td>
+          <td>${r.items.unit_value}</td>
+          <td>${total.toFixed(2)}</td>
+          <td>${r.branches.name}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+</script>
+<script>
+// -------------------- RENDER INVENTORY --------------------
+async function renderInventory() {
+  const { data: items, error } = await db.from("items").select("*");
+  const tbody = document.getElementById("inventoryTable");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (error || !items || items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6">No inventory available</td></tr>`;
+    return;
+  }
+
+  items.forEach(i => {
+    const total = parseFloat(i.unit_value) * parseInt(i.stock_quantity, 10);
+    tbody.innerHTML += `<tr>
+      <td>${i.name}</td>
+      <td>${i.unit}</td>
+      <td>${i.unit_value}</td>
+      <td>${i.stock_quantity}</td>
+      <td>${total.toFixed(2)}</td>
+      <td>
+        <button onclick="editStock(${i.id}, ${i.stock_quantity})">Edit</button>
+      </td>
+    </tr>`;
+  });
+}
+
+-------------------- EDIT STOCK --------------------
+async function editStock(itemId, currentQty) {
+  const newQty = prompt("Enter new stock quantity:", currentQty);
+  if (newQty === null || isNaN(newQty)) return;
+  await db.from("items").update({ stock_quantity: parseInt(newQty, 10) }).eq("id", itemId);
+ renderInventory();
+  loadAdminData(); // Refresh dropdowns and lists
+}
+
+// -------------------- AUTO REFRESH INVENTORY --------------------
+setInterval(() => {
+  if (loggedUser?.role === "admin") renderInventory();
+}, 5000);
+</script>
+<script>
+// -------------------- RENDER ADMIN ORDERS --------------------
+async function renderAdminOrders() {
+  const filterDate = document.getElementById("adminOrderDateFilter").value;
+  const branchId = document.getElementById("adminOrderBranchFilter").value;
+  const userId = document.getElementById("reportUserFilter").value;
+
+  let query = db.from("orders")
+    .select("*, items(name, stock_quantity), users(username)")
+    .order("date", { ascending: false });
+
+  if (filterDate) query = query.eq("date", filterDate);
+  if (branchId) query = query.eq("branch_id", branchId);
+  if (userId) query = query.eq("user_id", userId);
+
+  const { data: orders, error } = await query;
+  const container = document.getElementById("ordersTableContainer");
+  container.innerHTML = "";
+
+  if (error || !orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  const grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
+  });
+
+  for (const date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `<table>
+      <tr>
+        <th>User</th>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+      ${grouped[date].map(o => {
+        const stockQty = parseInt(o.items.stock_quantity, 10);
+        return `<tr>
+          <td>${o.users.username}</td>
+          <td>${o.items.name}</td>
+          <td>
+            ${o.status === 'pending' 
+              ? `<input type="number" id="orderQty-${o.id}" value="${o.quantity}" min="1" max="${stockQty}">`
+              : o.quantity
+            }
+          </td>
+          <td>${o.status}</td>
+          <td>
+            ${o.status === 'pending' 
+              ? `<button onclick="markSent(${o.id}, ${o.item_id})">Mark Sent</button>` 
+              : ''
+            }
+          </td>
+        </tr>`;
+      }).join("")}
+    </table>`;
+  }
+}
+
+// -------------------- MARK SENT --------------------
+//async function markSent(orderId, itemId) {
+  //const qtyInput = document.getElementById(`orderQty-${orderId}`);
+  //const quantity = parseInt(qtyInput.value, 10);
+  //if (!quantity || quantity <= 0) return alert("Invalid quantity");
+
+  //const { data: item } = await db.from("items").select("*").eq("id", itemId).single();
+  //if (!item) return alert("Item not found!");
+
+  //const stockQty = parseInt(item.stock_quantity, 10);
+
+  //if (stockQty >= quantity) {
+  //  await db.from("items").update({ stock_quantity: stockQty - quantity }).eq("id", itemId);
+   // await db.from("orders").update({ status: "sent", quantity }).eq("id", orderId);
+    //renderInventory();
+    //renderAdminOrders();
+    //renderUserOrders();
+  //} else {
+   // alert(`Not enough stock! Available: ${stockQty}`);
+ // }
+//}
+</script>
+<script>
+// -------------------- RENDER USER ORDERS --------------------
+async function renderUserOrders() {
+  const filterDate = document.getElementById("userOrderDateFilter").value;
+  let query = db.from("orders")
+    .select("*, items(name, unit, unit_value), users(username), branches(name)")
+    .eq("user_id", loggedUser.id)
+    .order("date", { ascending: false });
+
+  if (filterDate) query = query.eq("date", filterDate);
+
+  const { data: orders, error } = await query;
+  const container = document.getElementById("userOrdersTableContainer");
+  container.innerHTML = "";
+
+  if (error || !orders || orders.length === 0) {
+    container.innerHTML = "<p>No orders found.</p>";
+    return;
+  }
+
+  // Group orders by date
+  const grouped = {};
+  orders.forEach(o => {
+    if (!grouped[o.date]) grouped[o.date] = [];
+    grouped[o.date].push(o);
+  });
+
+  for (const date in grouped) {
+    container.innerHTML += `<div class="order-date">${date}</div>`;
+    container.innerHTML += `<table>
+      <tr>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
       ${grouped[date].map(o => `<tr>
         <td>${o.items.name}</td>
         <td>${o.quantity}</td>
         <td>${o.status}</td>
-        <td>${o.status === 'sent' ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ''}</td>
+        <td>
+          ${o.status === 'sent' ? `<button onclick="markReceived(${o.id})">Mark Received</button>` : ''}
+        </td>
       </tr>`).join("")}
     </table>`;
   }
 }
+
+// -------------------- MARK RECEIVED --------------------
+async function markReceived(orderId) {
+  const { data: order } = await db.from("orders").select("*").eq("id", orderId).single();
+  if (!order) return alert("Order not found!");
+
+  if (order.status !== "sent") return alert("Order is not marked sent yet!");
+
+  await db.from("orders").update({ status: "received" }).eq("id", orderId);
+  renderUserOrders();
+  renderAdminOrders(); // Update admin view as well
+  alert("Order marked as received!");
+}
+</script>
+<script>
+// -------------------- ADD STOCK FROM SUPPLIER --------------------
+async function addStock() {
+  const item_id = document.getElementById("receiveItemSelect").value;
+  const quantity = parseInt(document.getElementById("receiveQuantity").value);
+  const company_name = document.getElementById("supplierCompany").value.trim();
+  const invoice_no = document.getElementById("invoiceNo").value.trim();
+  const date = document.getElementById("receiveDate").value;
+  const branch_id = document.getElementById("receiveBranchSelect").value;
+
+  if (!item_id || !quantity || !company_name || !invoice_no || !date || !branch_id)
+    return alert("All fields are required!");
+
+  // Insert into supplier_receipts table
+  await db.from("supplier_receipts").insert([{
+    item_id,
+    quantity,
+    company_name,
+    invoice_no,
+    date,
+    branch_id
+  }]);
+
+  // Update stock in items table
+  const { data: item } = await db.from("items").select("*").eq("id", item_id).single();
+  await db.from("items").update({ stock_quantity: parseInt(item.stock_quantity) + quantity }).eq("id", item_id);
+
+  renderInventory();
+  renderSupplierReceipts();
+  renderReceivedStock();
+  alert("Stock received and updated!");
+}
+
+// -------------------- RENDER RECEIVED STOCK --------------------
+async function renderReceivedStock() {
+  const branchFilter = document.getElementById("receiveBranchSelect").value;
+
+  let query = db.from("supplier_receipts")
+    .select("*, items(name, unit, unit_value), branches(name)")
+    .order("date", { ascending: false });
+
+  if (branchFilter) query = query.eq("branch_id", branchFilter);
+
+  const { data: receipts, error } = await query;
+  const tbody = document.getElementById("receivedStockTable");
+  tbody.innerHTML = "";
+
+  if (error || !receipts || receipts.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5">No stock received yet</td></tr>`;
+    return;
+  }
+
+  receipts.forEach(r => {
+    const total = parseFloat(r.items.unit_value) * parseInt(r.quantity, 10);
+    tbody.innerHTML += `<tr>
+      <td>${r.items.name}</td>
+      <td>${r.items.unit}</td>
+      <td>${r.items.unit_value}</td>
+      <td>${r.quantity}</td>
+      <td>${total.toFixed(2)}</td>
+    </tr>`;
+  });
+}
+</script>
+<script>
+// -------------------- RENDER SENT ORDERS --------------------
+async function renderSentOrders() {
+  const container = document.getElementById("sentOrdersContainer");
+  if (!container) return;
+
+  const itemFilter = document.getElementById("sentItemFilter")?.value || "";
+
+  let query = db.from("orders")
+    .select("*, items(name, unit), users(username), branches(name)")
+    .eq("status", "sent")
+    .order("date", { ascending: false });
+
+  if (itemFilter) query = query.eq("item_id", itemFilter);
+
+  const { data: orders, error } = await query;
+  container.innerHTML = "";
+
+  if (error) { container.innerHTML = "<p>Error loading sent orders.</p>"; return; }
+  if (!orders || orders.length === 0) { container.innerHTML = "<p>No sent orders.</p>"; return; }
+
+  // Calculate total sent per item
+  const totals = {};
+  orders.forEach(o => {
+    totals[o.item_id] = (totals[o.item_id] || 0) + parseInt(o.quantity, 10);
+  });
+
+  container.innerHTML += `<table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>User</th>
+        <th>Branch</th>
+        <th>Quantity</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${orders.map(o => `<tr>
+        <td>${o.items.name}</td>
+        <td>${o.users.username}</td>
+        <td>${o.branches.name}</td>
+        <td>${o.quantity}</td>
+        <td>${o.date}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  // Display total sent per item
+  let totalText = "<h4>Total Sent Quantity per Item:</h4><ul>";
+  for (const [itemId, totalQty] of Object.entries(totals)) {
+    const itemName = orders.find(o => o.item_id == itemId).items.name;
+    totalText += `<li>${itemName}: ${totalQty}</li>`;
+  }
+  totalText += "</ul>";
+  container.innerHTML += totalText;
+}
+
+// -------------------- LOAD SENT ORDERS FILTER --------------------
+async function loadSentOrdersFilter() {
+  const { data: items } = await db.from("items").select("*");
+  const filterSelect = document.getElementById("sentItemFilter");
+  if (!filterSelect) return;
+
+  filterSelect.innerHTML = `<option value="">All Items</option>` +
+    items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+
+  filterSelect.onchange = renderSentOrders;
+}
+</script>
+<!-- -------------------- SENT ORDERS SECTION (ADMIN) -------------------- -->
+<div id="sentOrders" class="section hidden">
+  <h2>Sent Orders</h2>
+  <label>Filter by Item:
+    <select id="sentItemFilter">
+      <option value="">All Items</option>
+    </select>
+  </label>
+  <div id="sentOrdersContainer"></div>
+</div>
+
+<script>
+// Show Sent Orders Section in Admin Dashboard
+function showSentOrdersSection() {
+  document.querySelectorAll("#adminDashboard .section").forEach(s => s.classList.add("hidden"));
+  document.getElementById("sentOrders").classList.remove("hidden");
+  loadSentOrdersFilter();
+  renderSentOrders();
+}
+
+// Add button in sidebar
+document.querySelector(".sidebar").insertAdjacentHTML("beforeend",
+  '<button onclick="showSentOrdersSection()">Sent Orders</button>'
+);
+
+// Ensure page updates totals after marking orders sent
+
+  
 // -------------------- LOAD ITEMS DROPDOWN --------------------
 
-
-// -------------------- ENSURE DEDUCTION LOGIC --------------------
-// Deduction only happens when Admin marks sent and quantity <= stock
-// User can then mark received without changing stock
 </script>
+
